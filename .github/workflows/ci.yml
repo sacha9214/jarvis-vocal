@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      JARVIS_HOME: ${{ github.workspace }}/.jarvis-ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run ruff check
+      - run: uv run pytest -v
+      - name: Imports de tous les modules
+        run: uv run python -c "import jarvis.pipeline, jarvis.bench, jarvis.doctor, jarvis.stt.faster_backend, jarvis.stt.mlx_backend"
+      - name: Whisper CTranslate2 installable (Windows)
+        if: runner.os == 'Windows'
+        run: uv run python -c "from faster_whisper import WhisperModel"

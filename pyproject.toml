@@ -1,0 +1,50 @@
+[project]
+name = "jarvis"
+version = "0.1.0"
+description = "Assistant vocal local en français, rapide, pour Windows et macOS."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "faster-whisper>=1.2.1 ; platform_machine != 'arm64' or sys_platform != 'darwin'",
+    "httpx>=0.28.1",
+    "mlx-whisper>=0.4.3 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
+    "numpy>=2.5.3",
+    "ollama>=0.6.2",
+    "onnxruntime>=1.30.0",
+    "piper-tts>=1.8.0",
+    "pyyaml>=6.0.3",
+    "sounddevice>=0.5.6",
+    "soxr>=1.1.0",
+]
+
+[project.optional-dependencies]
+# Whisper sur GPU NVIDIA (Windows/Linux) : cuBLAS + cuDNN 9 pour CTranslate2.
+cuda = [
+    "nvidia-cublas-cu12 ; sys_platform == 'win32' or sys_platform == 'linux'",
+    "nvidia-cudnn-cu12>=9,<10 ; sys_platform == 'win32' or sys_platform == 'linux'",
+]
+
+[project.scripts]
+jarvis = "jarvis.__main__:main"
+
+[build-system]
+requires = ["uv_build>=0.12.15,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.7",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["network: télécharge de petits modèles audio (~5 Mo)"]

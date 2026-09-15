@@ -1,0 +1,43 @@
+# Copie ce fichier en config.yaml : dans le dossier d'où tu lances jarvis, ou dans le
+# dossier de données (macOS : ~/Library/Application Support/jarvis,
+# Windows : %LOCALAPPDATA%\jarvis). Tout est optionnel ; « auto » choisit selon ta
+# machine (voir `jarvis doctor`).
+
+user_name: ""               # ton prénom, pour que Jarvis s'adresse à toi
+
+wakeword:
+  model: hey_jarvis
+  threshold: 0.5            # monte à 0.6-0.7 s'il se réveille tout seul
+
+vad:
+  end_silence_ms: 550       # silence qui clôt ta phrase : plus bas = plus réactif, mais te coupe si tu hésites
+  preroll_ms: 250
+  start_timeout_s: 5
+  max_utterance_s: 15
+
+stt:
+  backend: auto             # mlx (Apple Silicon) | faster-whisper (Windows/Linux, CUDA ou CPU)
+  model: auto               # ex. mlx-community/whisper-large-v3-turbo-q4, large-v3-turbo, small
+  device: auto              # metal | cuda | cpu
+  compute_type: auto
+  language: fr
+
+llm:
+  backend: ollama
+  model: auto               # ex. qwen3.5:4b-mlx (Mac 16 Go), qwen3.5:4b (GPU 6-8 Go), qwen3.5:2b
+  host: http://127.0.0.1:11434
+  num_ctx: 4096
+  max_tokens: 320
+  temperature: 0.6
+  keep_alive: 30m           # le modèle reste chargé entre deux questions
+  history_turns: 6
+
+tts:
+  backend: piper
+  voice: fr_FR-siwis-medium # ou fr_FR-tom-medium (voix masculine, synthèse 2× plus lente)
+  length_scale: 1.0         # 0.9 = parle 10 % plus vite
+
+audio:
+  input_device: null        # index ou nom, voir `jarvis devices`
+  output_device: null
+  follow_up_s: 4            # après une réponse, écoute une relance sans « Hey Jarvis » (0 = désactivé)

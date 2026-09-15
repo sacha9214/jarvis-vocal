@@ -15,15 +15,17 @@ class FakeBackend:
         self.fail_before = fail_before
         self.fail_after = fail_after
         self.check_error = check_error
+        self.tools_seen = []
 
     def check(self):
         if self.check_error:
             raise RuntimeError(self.check_error)
 
-    def warmup(self, system_prompt):
+    def warmup(self, system_prompt, tools=None):
         pass
 
-    def stream(self, messages, cancel=None):
+    def stream(self, messages, cancel=None, tools=None):
+        self.tools_seen.append(tools)
         if self.fail_before:
             raise RuntimeError("hors ligne")
         for delta in self.deltas:
@@ -38,13 +40,15 @@ def spoken(events):
 
 
 def test_claude_failing_before_speaking_falls_back_to_local_and_stays_there():
-    router = Router({LOCAL: FakeBackend("qwen", ["Salut."]), CLAUDE: FakeBackend("haiku", fail_before=True)},
-                    CLAUDE, LOCAL)
+    local = FakeBackend("qwen", ["Salut."])
+    router = Router({LOCAL: local, CLAUDE: FakeBackend("haiku", fail_before=True)}, CLAUDE, LOCAL)
+    router.tools = [{"name": "open_app"}]
     events = list(router.stream(MESSAGES))
     assert isinstance(events[0], Notice)
     assert "local" in events[0].text
     assert spoken(events)[1:] == ["Salut."]
     assert router.active == LOCAL
+    assert local.tools_seen == [[{"name": "open_app"}]]
 
 
 def test_failure_in_the_middle_of_an_answer_is_not_hidden():

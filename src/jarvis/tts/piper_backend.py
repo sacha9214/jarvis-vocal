@@ -17,6 +17,10 @@ class PiperTTS:
         self._config = SynthesisConfig(length_scale=length_scale)
         self.sample_rate = int(self._voice.config.sample_rate)
 
+    def set_length_scale(self, length_scale: float) -> None:
+        from piper import SynthesisConfig
+        self._config = SynthesisConfig(length_scale=length_scale)
+
     def warmup(self) -> None:
         for _ in self.synthesize("Bonjour."):
             pass

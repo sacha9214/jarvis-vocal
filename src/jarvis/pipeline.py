@@ -3,9 +3,13 @@
 Tout vise la latence perçue (fin de ta phrase → première syllabe) :
 - fin de phrase détectée par un VAD neuronal, pas par un délai fixe ;
 - modèles chargés et chauffés au démarrage, gardés en mémoire ;
-- réflexes (heure, date, stop, bascule local/Claude) répondus sans LLM ;
+- réflexes (heure, date, stop, bascule local/Claude) et commandes du PC sans LLM ;
 - la réponse est synthétisée morceau par morceau pendant que le LLM écrit ;
 - l'écoute continue pendant qu'il parle : « Hey Jarvis » lui coupe la parole.
+
+Un seul fil lit le micro. Les confirmations demandées par un outil, les annonces des
+minuteurs et les boutons de l'interface, qui viennent d'autres fils, lui arrivent par une file
+ou un drapeau.
 """
 from __future__ import annotations
 
@@ -13,36 +17,53 @@ import difflib
 import logging
 import queue
 import threading
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
 from datetime import date
 
 import numpy as np
 
-from . import fastpath, prompts
+from . import commands, fastpath, prompts
 from .app import Components
 from .audio import SAMPLE_RATE, to_int16
 from .audio.endpoint import UtteranceRecorder
 from .audio.io import Microphone, Player
 from .audio.vad import CHUNK
 from .config import Config
-from .llm.base import Delta, Done, Message, Notice
+from .events import EventBus
+from .llm.base import Delta, Done, Message, Notice, ToolCall
 from .metrics import TurnTimer
 from .stt import clean_transcript
 from .text.chunker import SpeechChunker
+from .tools import ALWAYS, NO, YES, ToolResult
+from .tools.builtin import POWER, TIMERS
 from .tts import TextToSpeech
 
 LOG = logging.getLogger("jarvis")
 _ECHO_GUARD_S = 0.35   # après une réponse, ignore la réverbération de sa propre voix
+_CONTINUATION_S = 1.5  # attente de la suite d'une phrase inachevée (« Ouvre… euh… »)
+_LEVEL_EVERY = 3       # trames entre deux niveaux audio publiés (~10 par seconde)
+
+
+@dataclass
+class _Request:
+    kind: str                       # "confirm" | "say"
+    text: str
+    allow_always: bool = False
+    answer: str = NO
+    done: threading.Event = field(default_factory=threading.Event)
 
 
 class Speaker:
     """Fil de synthèse : reçoit des morceaux de texte et les joue dès qu'ils sont prêts."""
 
-    def __init__(self, tts: TextToSpeech, player: Player, cancel: threading.Event, timer: TurnTimer):
+    def __init__(self, tts: TextToSpeech, player: Player, cancel: threading.Event, timer: TurnTimer,
+                 on_start: Callable[[], None] | None = None):
         self._tts = tts
         self._player = player
         self._cancel = cancel
         self._timer = timer
+        self._on_start = on_start
         self._queue: queue.Queue[str | None] = queue.Queue()
         self._thread = threading.Thread(target=self._run, name="tts", daemon=True)
         self._thread.start()
@@ -57,6 +78,7 @@ class Speaker:
         return not self._thread.is_alive()
 
     def _run(self) -> None:
+        started = False
         while (text := self._queue.get()) is not None:
             if self._cancel.is_set():
                 continue
@@ -65,52 +87,113 @@ class Speaker:
                     if self._cancel.is_set():
                         break
                     self._timer.mark("first_audio")
+                    if not started:
+                        started = True
+                        if self._on_start:
+                            self._on_start()
                     self._player.play(block, self._tts.sample_rate)
             except Exception:
                 LOG.exception("Synthèse vocale en échec pour %r", text)
 
 
 class Assistant:
-    def __init__(self, cfg: Config, parts: Components, mic: Microphone, player: Player):
+    def __init__(self, cfg: Config, parts: Components, mic: Microphone, player: Player,
+                 bus: EventBus | None = None):
         self.cfg = cfg
         self.parts = parts
         self.mic = mic
         self.player = player
+        self.bus = bus or EventBus()
         self.recorder = UtteranceRecorder(parts.vad, cfg.vad)
         self.history: list[Message] = []
+        self.manual_wake = threading.Event()
+        self._stop_requested = threading.Event()
         self._last_reply = ""
         self._system = ""
-        self._system_day: date | None = None
+        self._system_key: tuple[date, str, bool] | None = None
+        self._requests: queue.Queue[_Request] = queue.Queue()
+        self._main_thread: int | None = None
+        self._frames: Iterator[np.ndarray] | None = None
+        self._frame_count = 0
+        self._decision: str | None = None
+        self._decided = threading.Event()
+        parts.executor.confirm = self._confirm
+        parts.executor.on_result = self._on_tool_result
+        TIMERS.announce = self.announce
+        POWER.announce = self.announce
+
+    # -- appelés depuis d'autres fils (outils, minuteurs, interface)
+
+    def announce(self, text: str) -> None:
+        self._requests.put(_Request("say", text))
+
+    def decide(self, decision: str) -> None:
+        self._decision = decision
+        self._decided.set()
+
+    def wake(self) -> None:
+        self.manual_wake.set()
+
+    def stop(self) -> None:
+        """Bouton Stop : coupe la voix et termine la conversation en cours."""
+        self._stop_requested.set()
+        self.player.stop()
+
+    # -- boucle principale
 
     def run(self) -> None:
-        frames = self.mic.frames()
+        self._main_thread = threading.get_ident()
+        frames = self._frames = self.mic.frames()
         wakeword = self.parts.wakeword
+        self._publish_engine()
+        self._state("sleeping")
         LOG.info("À l'écoute : dis « Hey Jarvis ». %s", self.parts.llm.describe())
         for frame in frames:
-            if wakeword.process(to_int16(frame)) >= wakeword.threshold:
+            if self._tick(frame, frames):
+                self._state("sleeping")
+            if self.manual_wake.is_set() or wakeword.process(to_int16(frame)) >= wakeword.threshold:
+                self.manual_wake.clear()
+                self._stop_requested.clear()
                 wakeword.reset()
                 self._conversation(frames)
                 wakeword.reset()
+                self._stop_requested.clear()
+                self._state("sleeping")
                 LOG.info("En veille.")
 
     def _conversation(self, frames: Iterator[np.ndarray]) -> None:
         self.player.beep()
         timeout = self.cfg.vad.start_timeout_s
         while True:
-            audio = self.recorder.record(frames, timeout)
+            self._state("listening")
+            audio = self.recorder.record(frames, timeout, cancel=self._stop_requested, on_frame=self._level)
             if audio is None:
                 return
             timer = TurnTimer()
-            text = clean_transcript(self.parts.stt.transcribe(audio))
+            self._state("thinking")
+            raw = self.parts.stt.transcribe(audio)
+            if fastpath.looks_unfinished(raw):
+                # « Ouvre… euh… » : on laisse finir la phrase, puis on retranscrit le tout.
+                self._state("listening")
+                more = self.recorder.record(frames, _CONTINUATION_S, cancel=self._stop_requested,
+                                            on_frame=self._level)
+                if more is not None:
+                    self._state("thinking")
+                    raw = self.parts.stt.transcribe(np.concatenate([audio, more]))
+            text = clean_transcript(raw)
             timer.mark("stt")
             if not text or self._is_echo(text):
                 return
             LOG.info("🗣  %s", text)
+            self.bus.publish("user", text=text)
             if fastpath.is_stop(text):
                 self.player.stop()
                 return
             interrupted = self._answer(text, timer, frames)
             LOG.info("⏱  %s", timer.summary())
+            self.bus.publish("metrics", marks={name: round(s * 1000) for name, s in timer.marks.items()})
+            if self._stop_requested.is_set():
+                return
             if interrupted:
                 self.player.beep()
                 timeout = self.cfg.vad.start_timeout_s
@@ -122,18 +205,24 @@ class Assistant:
 
     def _reflex(self, text: str) -> str | None:
         if target := fastpath.switch_target(text):
-            return self.parts.llm.switch(target)
+            reply = self.parts.llm.switch(target)
+            self._publish_engine()
+            return reply
         if fastpath.asks_engine(text):
             return self.parts.llm.describe()
-        return fastpath.reply(text)
+        if quick := fastpath.reply(text):
+            return quick
+        if self.cfg.tools.enabled and (command := commands.parse(text)):
+            return self.parts.executor.run(command.tool, command.arguments)
+        return None
 
     def _answer(self, text: str, timer: TurnTimer, frames: Iterator[np.ndarray]) -> bool:
         """Répond en parlant ; renvoie True si « Hey Jarvis » a coupé la réponse."""
         cancel = threading.Event()
-        speaker = Speaker(self.parts.tts, self.player, cancel, timer)
+        speaker = Speaker(self.parts.tts, self.player, cancel, timer, on_start=lambda: self._state("speaking"))
         parts: list[str] = []
         producer = None
-        if quick := self._reflex(text):
+        if (quick := self._reflex(text)) is not None:
             timer.mark("fastpath")
             parts.append(quick)
             speaker.say(quick)
@@ -147,6 +236,7 @@ class Assistant:
             producer.join(timeout=5)
         reply = "".join(parts).strip()
         LOG.info("🤖 %s%s", reply, " [interrompu]" if interrupted else "")
+        self.bus.publish("reply", text=reply, interrupted=interrupted)
         self.history += [{"role": "user", "content": text}, {"role": "assistant", "content": reply or "…"}]
         self.history = self.history[-2 * self.cfg.llm.history_turns:]
         self._last_reply = reply
@@ -155,24 +245,35 @@ class Assistant:
     def _produce(self, messages: list[Message], speaker: Speaker, cancel: threading.Event,
                  timer: TurnTimer, parts: list[str]) -> None:
         chunker = SpeechChunker()
+
+        def say(piece: str) -> None:
+            timer.mark("first_chunk")
+            speaker.say(piece)
+
+        tools = self.parts.executor.schemas() if self.cfg.tools.enabled else None
         try:
-            for event in self.parts.llm.stream(messages, cancel=cancel):
+            for event in self.parts.llm.stream(messages, cancel=cancel, tools=tools):
                 if isinstance(event, Delta):
                     timer.mark("llm_first_token")
                     parts.append(event.text)
                     for piece in chunker.feed(event.text):
-                        timer.mark("first_chunk")
-                        speaker.say(piece)
+                        say(piece)
+                elif isinstance(event, ToolCall):
+                    for piece in chunker.flush():
+                        say(piece)
+                    result = self.parts.executor.run(event.name, event.arguments)
+                    timer.mark("tool")
+                    parts.append((" " if parts else "") + result)
+                    say(result)
                 elif isinstance(event, Notice):
                     speaker.say(event.text)
                 elif isinstance(event, Done):
-                    LOG.debug("LLM : prompt %d tokens, %d tokens produits",
-                              event.prompt_tokens, event.output_tokens)
+                    LOG.debug("LLM : prompt %d tokens, %d tokens produits", event.prompt_tokens, event.output_tokens)
             for piece in chunker.flush():
-                timer.mark("first_chunk")
-                speaker.say(piece)
+                say(piece)
         except Exception as exc:
             LOG.error("LLM en échec : %s", exc)
+            self.bus.publish("error", text=str(exc))
             speaker.say("Désolé, le modèle ne répond pas.")
         finally:
             speaker.close()
@@ -181,6 +282,11 @@ class Assistant:
                                speaker: Speaker, cancel: threading.Event) -> bool:
         wakeword = self.parts.wakeword
         for frame in frames:
+            self._tick(frame, frames)
+            if self._stop_requested.is_set():
+                cancel.set()
+                self.player.stop()
+                return False
             if wakeword.process(to_int16(frame)) >= wakeword.threshold:
                 cancel.set()
                 self.player.stop()
@@ -190,11 +296,89 @@ class Assistant:
                 return False
         return False
 
+    # -- confirmations et annonces
+
+    def _confirm(self, question: str, allow_always: bool) -> str:
+        if threading.get_ident() == self._main_thread and self._frames is not None:
+            return self._ask(self._frames, question, allow_always)
+        request = _Request("confirm", question, allow_always)
+        self._requests.put(request)
+        if not request.done.wait(self.cfg.tools.confirm_timeout_s + 60):
+            return NO
+        return request.answer
+
+    def _ask(self, frames: Iterator[np.ndarray], question: str, allow_always: bool) -> str:
+        self._decision = None
+        self._decided.clear()
+        self._state("confirm")
+        self.bus.publish("confirm", question=question, always=allow_always)
+        LOG.info("❓ %s", question)
+        self._say(frames, question)
+        if self._decision is None:
+            audio = self.recorder.record(frames, self.cfg.tools.confirm_timeout_s, cancel=self._decided,
+                                         on_frame=self._level)
+            if self._decision is None and audio is not None:
+                heard = clean_transcript(self.parts.stt.transcribe(audio))
+                LOG.info("🗣  %s", heard)
+                self._decision = fastpath.confirmation(heard)
+        decision = self._decision or NO
+        if decision == ALWAYS and not allow_always:
+            decision = YES
+        self.bus.publish("confirm_done", decision=decision)
+        self._state("thinking")
+        return decision
+
+    def _say(self, frames: Iterator[np.ndarray], text: str) -> None:
+        """Dit une phrase hors réponse (question, annonce) en continuant de lire le micro."""
+        self._state("speaking")
+        for block in self.parts.tts.synthesize(text):
+            self.player.play(block, self.parts.tts.sample_rate)
+        for frame in frames:
+            self._level(frame)
+            if self.player.idle() or self._decided.is_set():
+                break
+        self._skip(frames, _ECHO_GUARD_S)
+
+    def _tick(self, frame: np.ndarray, frames: Iterator[np.ndarray]) -> bool:
+        """Publie le niveau audio et traite les demandes des autres fils ; True s'il y en avait."""
+        self._level(frame)
+        if self._requests.empty():
+            return False
+        while True:
+            try:
+                request = self._requests.get_nowait()
+            except queue.Empty:
+                return True
+            if request.kind == "say":
+                self.bus.publish("announce", text=request.text)
+                self._say(frames, request.text)
+            else:
+                request.answer = self._ask(frames, request.text, request.allow_always)
+            request.done.set()
+
+    # -- divers
+
+    def _level(self, frame: np.ndarray) -> None:
+        self._frame_count += 1
+        if self._frame_count % _LEVEL_EVERY == 0:
+            self.bus.publish("levels", mic=round(float(np.sqrt(np.mean(frame * frame))), 4),
+                             out=round(float(getattr(self.player, "level", 0.0)), 4))
+
+    def _state(self, name: str) -> None:
+        self.bus.publish("state", state=name)
+
+    def _publish_engine(self) -> None:
+        self.bus.publish("engine", active=self.parts.llm.active, model=self.parts.llm.model)
+
+    def _on_tool_result(self, result: ToolResult) -> None:
+        self.bus.publish("tool", name=result.name, arguments=result.arguments, level=result.level,
+                         text=result.text, allowed=result.allowed, ms=round(result.ms))
+
     def _messages(self, text: str) -> list[Message]:
-        today = date.today()
-        if today != self._system_day:
-            self._system = prompts.system_prompt(self.cfg.user_name, today)
-            self._system_day = today
+        key = (date.today(), self.cfg.user_name, self.cfg.tools.enabled)
+        if key != self._system_key:
+            self._system = prompts.system_prompt(self.cfg.user_name, key[0], tools=self.cfg.tools.enabled)
+            self._system_key = key
         return [{"role": "system", "content": self._system}, *self.history, {"role": "user", "content": text}]
 
     def _is_echo(self, text: str) -> bool:

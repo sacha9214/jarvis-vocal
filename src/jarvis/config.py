@@ -58,6 +58,14 @@ class ClaudeConfig:
 
 
 @dataclass
+class ToolsConfig:
+    enabled: bool = True
+    always_allow: list[str] = field(default_factory=list)   # actions N2 autorisées sans confirmation
+    disabled: list[str] = field(default_factory=list)       # actions interdites
+    confirm_timeout_s: float = 6.0
+
+
+@dataclass
 class TtsConfig:
     backend: str = "piper"
     voice: str = "fr_FR-siwis-medium"
@@ -72,6 +80,12 @@ class AudioConfig:
 
 
 @dataclass
+class UiConfig:
+    window: str = "app"            # app (fenêtre Jarvis) | browser | none
+    port: int = 0                  # 0 = port libre choisi au démarrage
+
+
+@dataclass
 class Config:
     user_name: str = ""
     wakeword: WakeWordConfig = field(default_factory=WakeWordConfig)
@@ -79,8 +93,10 @@ class Config:
     stt: SttConfig = field(default_factory=SttConfig)
     llm: LlmConfig = field(default_factory=LlmConfig)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
+    tools: ToolsConfig = field(default_factory=ToolsConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
+    ui: UiConfig = field(default_factory=UiConfig)
 
     def resolve(self, hw: hardware.Hardware | None = None) -> Config:
         """Remplace les « auto » par le plan recommandé pour ce matériel."""
@@ -103,6 +119,9 @@ class Config:
         return self
 
 
+LOADED_PATH: Path | None = None
+
+
 def _apply(target: Any, data: dict[str, Any], where: str = "") -> None:
     fields = {f.name for f in dataclasses.fields(target)}
     for key, value in data.items():
@@ -117,7 +136,16 @@ def _apply(target: Any, data: dict[str, Any], where: str = "") -> None:
             setattr(target, key, value)
 
 
+def _merge(base: dict[str, Any], updates: dict[str, Any]) -> None:
+    for key, value in updates.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            _merge(base[key], value)
+        else:
+            base[key] = value
+
+
 def load(path: Path | None = None) -> Config:
+    global LOADED_PATH
     config = Config()
     path = path or paths.config_path()
     if path.exists():
@@ -125,4 +153,18 @@ def load(path: Path | None = None) -> Config:
         if not isinstance(data, dict):
             raise ValueError(f"{path} : la configuration doit être un dictionnaire YAML")
         _apply(config, data)
+    LOADED_PATH = path
     return config
+
+
+def update_file(updates: dict[str, Any], path: Path | None = None) -> Path:
+    """Fusionne des réglages dans config.yaml ; les autres valeurs du fichier sont conservées."""
+    _apply(Config(), updates)   # refuse les clés inconnues avant d'écrire quoi que ce soit
+    path = path or LOADED_PATH or paths.config_path()
+    data: dict[str, Any] = {}
+    if path.exists():
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    _merge(data, updates)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return path

@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from typing import Protocol
 
 import numpy as np
 
@@ -14,13 +15,19 @@ _SPEECH_START_FRAMES = 3   # ~100 ms de parole avant de déclarer un début (ign
 _TAIL_S = 0.15             # silence gardé après la dernière syllabe
 
 
+class _Flag(Protocol):
+    def is_set(self) -> bool: ...
+
+
 class UtteranceRecorder:
     def __init__(self, vad: SileroVad, cfg: VadConfig):
         self.vad = vad
         self.cfg = cfg
 
-    def record(self, frames: Iterator[np.ndarray], start_timeout_s: float) -> np.ndarray | None:
-        """Consomme les trames jusqu'à la fin de la phrase. None si personne ne parle."""
+    def record(self, frames: Iterator[np.ndarray], start_timeout_s: float, cancel: _Flag | None = None,
+               on_frame: Callable[[np.ndarray], None] | None = None) -> np.ndarray | None:
+        """Consomme les trames jusqu'à la fin de la phrase. None si personne ne parle ou si
+        `cancel` se lève (réponse donnée par l'interface, par exemple)."""
         cfg = self.cfg
         frame_s = CHUNK / SAMPLE_RATE
         preroll = deque(maxlen=max(1, round(cfg.preroll_ms / 1000 / frame_s)) + _SPEECH_START_FRAMES)
@@ -34,6 +41,10 @@ class UtteranceRecorder:
         audio: list[np.ndarray] = []
         waited = speech_run = silence = 0
         for frame in frames:
+            if cancel is not None and cancel.is_set():
+                return None
+            if on_frame is not None:
+                on_frame(frame)
             prob = self.vad(frame)
             if not audio:
                 preroll.append(frame)

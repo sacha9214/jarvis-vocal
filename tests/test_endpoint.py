@@ -41,6 +41,14 @@ def test_short_clicks_do_not_start_a_recording():
     assert UtteranceRecorder(ScriptedVad(), VadConfig()).record(stream, 1.0) is None
 
 
+def test_cancel_stops_waiting_immediately():
+    class Cancelled:
+        def is_set(self):
+            return True
+
+    assert UtteranceRecorder(ScriptedVad(), VadConfig()).record(frames([(0.9, 100)]), 30, cancel=Cancelled()) is None
+
+
 def test_hysteresis_keeps_recording_through_soft_syllables():
     cfg = VadConfig(end_silence_ms=160)
     stream = frames([(0.9, 5), (0.4, 20), (0.9, 5), (0.0, 20)])

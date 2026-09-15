@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Iterator, Sequence
+from typing import Any
 
 import httpx
 import ollama
@@ -22,7 +23,7 @@ class OllamaLLM:
         self.model = cfg.model
         self._client = ollama.Client(host=cfg.host, timeout=httpx.Timeout(120.0, connect=3.0))
         # Pas de « réflexion » à voix haute : un modèle qui pense 300 tokens avant de parler
-        # ajoute des secondes de silence. None si le modèle ne gère pas l'option.
+        # ajoute des secondes de silence.
         self._think: bool | None = False
 
     def _options(self, **overrides) -> dict:
@@ -41,25 +42,18 @@ class OllamaLLM:
             raise RuntimeError(f"Modèle {self.model} absent. Installe-le : `ollama pull {self.model}` "
                                "(ou `jarvis setup`).")
 
-    def warmup(self, system_prompt: str) -> None:
-        """Charge le modèle en mémoire et pré-remplit le cache KV du prompt système : les
-        questions suivantes ne recalculent que leurs propres tokens."""
+    def warmup(self, system_prompt: str, tools: list[dict[str, Any]] | None = None) -> None:
+        """Charge le modèle en mémoire et pré-remplit le cache KV du prompt système et des
+        outils : les questions suivantes ne recalculent que leurs propres tokens."""
         messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": "Bonjour"}]
-        for _ in self.stream(messages, max_tokens=1):
+        for _ in self.stream(messages, tools=tools, max_tokens=1):
             pass
 
     def stream(self, messages: Sequence[Message], cancel: threading.Event | None = None,
-               max_tokens: int | None = None) -> Iterator[Event]:
+               tools: list[dict[str, Any]] | None = None, max_tokens: int | None = None) -> Iterator[Event]:
         options = self._options(**({"num_predict": max_tokens} if max_tokens else {}))
-        try:
-            chunks = self._chat(messages, options)
-        except ollama.ResponseError as exc:
-            if self._think is not None and "think" in str(exc).lower():
-                LOG.info("%s ne gère pas l'option think : désactivée.", self.model)
-                self._think = None
-                chunks = self._chat(messages, options)
-            else:
-                raise
+        chunks = self._client.chat(model=self.model, messages=list(messages), tools=tools or None, stream=True,
+                                   think=self._think, options=options, keep_alive=self.cfg.keep_alive)
         try:
             for chunk in chunks:
                 if cancel is not None and cancel.is_set():
@@ -81,7 +75,3 @@ class OllamaLLM:
             close = getattr(chunks, "close", None)
             if close:
                 close()
-
-    def _chat(self, messages: Sequence[Message], options: dict):
-        return self._client.chat(model=self.model, messages=list(messages), stream=True,
-                                 think=self._think, options=options, keep_alive=self.cfg.keep_alive)

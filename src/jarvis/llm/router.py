@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Iterator, Sequence
+from typing import Any
 
 from .base import Delta, Event, LanguageModel, Message, Notice
 
@@ -32,6 +33,7 @@ class Router:
         self.backends = backends
         self.active = active
         self.fallback = fallback if fallback in backends else None
+        self.tools: list[dict[str, Any]] | None = None
         self._system: str | None = None
 
     @property
@@ -54,7 +56,7 @@ class Router:
 
     def warmup(self, system_prompt: str) -> None:
         self._system = system_prompt
-        self.backends[self.active].warmup(system_prompt)
+        self.backends[self.active].warmup(system_prompt, self.tools)
 
     def describe(self) -> str:
         if self.active == CLAUDE:
@@ -75,16 +77,19 @@ class Router:
             return f"Je ne peux pas passer sur {label}, le détail est dans le terminal."
         self.active = target
         if self._system:   # chauffe en arrière-plan : la prochaine question ne paie pas le chargement
-            threading.Thread(target=backend.warmup, args=(self._system,), name="warmup", daemon=True).start()
+            threading.Thread(target=backend.warmup, args=(self._system, self.tools), name="warmup",
+                             daemon=True).start()
         return f"C'est fait, je passe sur {label}."
 
-    def stream(self, messages: Sequence[Message], cancel: threading.Event | None = None) -> Iterator[Event]:
+    def stream(self, messages: Sequence[Message], cancel: threading.Event | None = None,
+               tools: list[dict[str, Any]] | None = None) -> Iterator[Event]:
+        tools = self.tools if tools is None else tools
         if messages and messages[0].get("role") == "system":
             self._system = messages[0]["content"]
         name = self.active
         spoke = False
         try:
-            for event in self.backends[name].stream(messages, cancel=cancel):
+            for event in self.backends[name].stream(messages, cancel=cancel, tools=tools):
                 spoke = spoke or isinstance(event, Delta)
                 yield event
             return
@@ -96,4 +101,4 @@ class Router:
             self.active = fallback
         yield Notice(f"{_label(name).capitalize()} ne répond pas, je réponds en local. "
                      "Dis « passe sur Claude » pour réessayer.")
-        yield from self.backends[fallback].stream(messages, cancel=cancel)
+        yield from self.backends[fallback].stream(messages, cancel=cancel, tools=tools)

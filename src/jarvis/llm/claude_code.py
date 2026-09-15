@@ -8,7 +8,8 @@ la documentation de Claude Code.
 Latence : un seul processus reste ouvert (`--input-format stream-json`), le démarrage
 n'est payé qu'une fois et chaque question suivante part immédiatement.
 Sobriété : rien de ton ~/.claude ne s'y charge (CLAUDE.md, mémoire automatique, hooks,
-plugins, connecteurs, outils), ce qui garde le prompt minuscule et le quota intact.
+plugins, connecteurs). Aucun outil de Claude Code n'est disponible : seuls les outils de
+Jarvis le sont, servis par son serveur MCP local, avec les mêmes confirmations qu'à la voix.
 """
 from __future__ import annotations
 
@@ -48,6 +49,7 @@ _ISOLATION_ENV = {
 # Erreurs pour lesquelles attendre les nouveaux essais de Claude Code ne sert à rien.
 _FATAL_RETRY_ERRORS = {"authentication_failed", "oauth_org_not_allowed", "account_on_hold",
                        "billing_error", "rate_limit", "model_not_found"}
+MCP_SERVER_NAME = "jarvis"
 
 
 def child_env(auth: str, environ: dict[str, str] | None = None) -> dict[str, str]:
@@ -101,7 +103,15 @@ class ClaudeCodeLLM:
         self._turn_open = False
         self._plugins: list[str] | None = None
         self._request_ids = itertools.count(1)
+        self._mcp_url: str | None = None
+        self._mcp_token: str | None = None
         atexit.register(self.close)
+
+    def configure_tools(self, url: str, token: str) -> None:
+        """Branche les outils de Jarvis (serveur MCP local) ; pris en compte au prochain lancement."""
+        with self._lock:
+            self._mcp_url, self._mcp_token = url, token
+            self._stop()
 
     # -- vérifications
 
@@ -170,7 +180,18 @@ class ClaudeCodeLLM:
         args = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
                 "--include-partial-messages", "--no-session-persistence", "--model", self.cfg.model,
                 "--system-prompt-file", str(prompt_file), "--settings", str(settings_file),
-                "--disallowedTools", "*", "--disable-slash-commands"]
+                "--disable-slash-commands"]
+        if self._mcp_url and self._mcp_token:
+            mcp_file = self._workdir / "mcp.json"
+            mcp_file.write_text(json.dumps({"mcpServers": {MCP_SERVER_NAME: {
+                "type": "http", "url": self._mcp_url, "headers": {"Authorization": f"Bearer {self._mcp_token}"},
+            }}}), encoding="utf-8")
+            if os.name == "posix":
+                os.chmod(mcp_file, 0o600)
+            # Aucun outil intégré (Bash, fichiers…) ; seuls ceux de Jarvis, sans invite de permission.
+            args += ["--tools", "", "--mcp-config", str(mcp_file), "--allowedTools", f"mcp__{MCP_SERVER_NAME}"]
+        else:
+            args += ["--disallowedTools", "*"]
         if self.cfg.effort:
             args += ["--effort", self.cfg.effort]
         if self.cfg.auth == "api_key":
@@ -239,13 +260,14 @@ class ClaudeCodeLLM:
 
     # -- conversation
 
-    def warmup(self, system_prompt: str) -> None:
+    def warmup(self, system_prompt: str, tools: list[dict[str, Any]] | None = None) -> None:
         """Lance le processus maintenant : son démarrage n'est pas payé à la première question."""
         with self._lock:
             if not self._alive() or system_prompt != self._system:
                 self._start(system_prompt)
 
-    def stream(self, messages: Sequence[Message], cancel: threading.Event | None = None) -> Iterator[Event]:
+    def stream(self, messages: Sequence[Message], cancel: threading.Event | None = None,
+               tools: list[dict[str, Any]] | None = None) -> Iterator[Event]:
         system = messages[0]["content"] if messages and messages[0].get("role") == "system" else ""
         conversation = [(m["role"], m["content"]) for m in messages if m.get("role") != "system"]
         if not conversation or conversation[-1][0] != "user":

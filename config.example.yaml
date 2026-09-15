@@ -45,6 +45,16 @@ tts:
   voice: fr_FR-siwis-medium # ou fr_FR-tom-medium (voix masculine, synthèse 2× plus lente)
   length_scale: 1.0         # 0.9 = parle 10 % plus vite
 
+tools:                      # actions sur le PC
+  enabled: true
+  always_allow: []          # actions N2 autorisées sans confirmation (rempli quand tu réponds « toujours »)
+  disabled: []              # actions interdites, ex. [power, close_app]
+  confirm_timeout_s: 6      # temps pour répondre « oui » / « non »
+
+ui:
+  window: app               # app (fenêtre Jarvis) | browser | none
+  port: 0                   # 0 = port libre choisi au démarrage
+
 audio:
   input_device: null        # index ou nom, voir `jarvis devices`
   output_device: null

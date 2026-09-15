@@ -86,3 +86,38 @@ def reply(text: str, now: datetime | None = None) -> str | None:
     if _DATE.fullmatch(normalized):
         return say_date(now)
     return None
+
+
+_ALWAYS = re.compile(r"(?:oui )?(?:toujours|autorise toujours|toujours autorise|a chaque fois|plus besoin de demander)"
+                     r"(?: oui| merci)?")
+_YES = re.compile(r"(?:oui|ouais|ouai|yes|ok|okay|d accord|vas y|allez y|allez|go|confirme|je confirme|fais le"
+                  r"|carrement|bien sur|exactement|c est ca|parfait|oui oui|oui vas y|oui fais le|oui confirme)"
+                  r"(?: merci| jarvis| s il te plait)?")
+_NO = re.compile(r"(?:non|nan|no|annule|laisse tomber|stop|pas maintenant|surtout pas|non merci|non annule|arrete"
+                 r"|pas question)(?: merci| jarvis)?")
+
+
+def confirmation(text: str) -> str | None:
+    """Réponse à « Tu confirmes ? » : "always", "yes", "no" ou None si incompris."""
+    normalized = normalize(text)
+    if _ALWAYS.fullmatch(normalized):
+        return "always"
+    if _YES.fullmatch(normalized):
+        return "yes"
+    if _NO.fullmatch(normalized):
+        return "no"
+    return None
+
+
+_DANGLING = {"et", "ou", "mais", "de", "du", "des", "le", "la", "les", "un", "une", "au", "aux", "pour", "avec",
+             "sur", "dans", "en", "que", "qui", "euh", "heu", "hum", "mon", "ma", "mes", "ton", "ta", "ce",
+             "cette", "sans", "par", "puis", "alors", "donc", "si", "quand", "l", "d"}
+
+
+def looks_unfinished(text: str) -> bool:
+    """« Ouvre… », « Mets de la musique et » : la phrase n'est probablement pas finie."""
+    stripped = text.strip()
+    if stripped.endswith(("...", "…", ",")):
+        return True
+    words = normalize(stripped).split()
+    return bool(words) and words[-1] in _DANGLING

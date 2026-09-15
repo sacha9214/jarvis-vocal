@@ -106,6 +106,17 @@ def test_claude_starts_isolated_from_the_user_setup(llm, tmp_path, monkeypatch):
     assert "CLAUDECODE" not in call["env"]
 
 
+def test_jarvis_tools_replace_claude_code_tools(llm, tmp_path):
+    llm.configure_tools("http://127.0.0.1:1234/mcp", "jeton")
+    ask(llm, [SYSTEM, user("A")])
+    argv = invocations(tmp_path)[0]["argv"]
+    assert argv[argv.index("--tools") + 1] == ""
+    assert "--disallowedTools" not in argv
+    assert argv[argv.index("--allowedTools") + 1] == "mcp__jarvis"
+    mcp = json.loads(Path(argv[argv.index("--mcp-config") + 1]).read_text(encoding="utf-8"))
+    assert mcp["mcpServers"]["jarvis"]["url"] == "http://127.0.0.1:1234/mcp"
+
+
 def test_child_env_uses_the_subscription_not_an_api_key():
     environ = {"PATH": "/bin", "CLAUDECODE": "1", "CLAUDE_CODE_ENTRYPOINT": "desktop",
                "CLAUDE_CODE_OAUTH_TOKEN": "jeton-utilisateur", "ANTHROPIC_API_KEY": "cle",

@@ -7,10 +7,15 @@ from datetime import date
 from .fastpath import _JOURS, _MOIS
 
 
-def system_prompt(user_name: str, today: date) -> str:
+def system_prompt(user_name: str, today: date, tools: bool = False) -> str:
     who = user_name or "l'utilisateur"
     # La date (et pas l'heure) : le prompt ne change qu'une fois par jour, le cache tient.
     day = f"{_JOURS[today.weekday()]} {today.day} {_MOIS[today.month - 1]} {today.year}"
+    actions = (
+        "Tu peux agir sur son ordinateur avec tes outils (ouvrir des applications ou des sites, régler le son, "
+        "contrôler la musique, lancer des minuteurs…). Quand la demande est une action, appelle l'outil "
+        "directement, sans demander la permission : Jarvis demande lui-même confirmation pour les actions "
+        "sensibles.\n" if tools else "")
     return (
         f"Tu es Jarvis, l'assistant vocal personnel de {who}. Tu t'adresses directement à {who} "
         "et tu tutoies.\n"
@@ -19,5 +24,6 @@ def system_prompt(user_name: str, today: date) -> str:
         "- commence directement par la réponse, sans formule d'introduction ;\n"
         "- jamais de markdown, de listes, d'émojis ni d'adresses web ;\n"
         "- si la demande est ambiguë, pose une seule question courte.\n"
+        f"{actions}"
         f"Contexte à ne jamais mentionner de toi-même : nous sommes le {day}."
     )

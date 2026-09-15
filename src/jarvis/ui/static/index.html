@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis</title>
+<base href="/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;800&family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="static/hud.css">
+</head>
+<body data-state="offline">
+<canvas id="backdrop" aria-hidden="true"></canvas>
+<div class="scanlines" aria-hidden="true"></div>
+<div class="vignette" aria-hidden="true"></div>
+
+<div class="boot" id="boot" aria-hidden="true">
+  <div class="boot-core"></div>
+  <div class="boot-logo" data-text="J.A.R.V.I.S">J.A.R.V.I.S</div>
+  <ol class="boot-lines" id="boot-lines"></ol>
+</div>
+
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i></i></span>
+      <div>
+        <div class="brand-name">J.A.R.V.I.S</div>
+        <div class="brand-sub">Assistant vocal · <span id="brand-version">v0</span></div>
+      </div>
+    </div>
+
+    <div class="state-pill" id="state-pill" role="status" aria-live="polite">
+      <span class="state-dot" aria-hidden="true"></span>
+      <span id="state-label">CONNEXION…</span>
+    </div>
+
+    <div class="top-right">
+      <div class="clock" aria-label="Heure">
+        <div class="clock-time" id="clock-time">--:--:--</div>
+        <div class="clock-date" id="clock-date">—</div>
+      </div>
+      <div class="engine-switch" id="engine-switch" role="radiogroup" aria-label="Moteur de réponse">
+        <span class="engine-glider" aria-hidden="true"></span>
+        <button type="button" role="radio" data-engine="local" aria-checked="true">LOCAL</button>
+        <button type="button" role="radio" data-engine="claude" aria-checked="false">CLAUDE</button>
+      </div>
+      <button class="icon-btn" id="open-settings" type="button" aria-label="Réglages" title="Réglages">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.6-2-3.4-2.4 1a7.8 7.8 0 0 0-2.6-1.5L14 2.5h-4l-.4 2.5A7.8 7.8 0 0 0 7 6.5l-2.4-1-2 3.4 2 1.6a7.6 7.6 0 0 0 0 3l-2 1.6 2 3.4 2.4-1a7.8 7.8 0 0 0 2.6 1.5l.4 2.5h4l.4-2.5a7.8 7.8 0 0 0 2.6-1.5l2.4 1 2-3.4-2-1.6Z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <aside class="panel panel-left" aria-label="Système">
+    <div class="panel-title"><span>SYSTÈME</span><span class="panel-meta" id="sys-meta">—</span></div>
+    <div class="gauges">
+      <div class="gauge" id="gauge-cpu"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="g-track" cx="50" cy="50" r="42"/><circle class="g-value" cx="50" cy="50" r="42"/></svg><div class="g-label"><strong>--</strong><span>CPU</span></div></div>
+      <div class="gauge" id="gauge-ram"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="g-track" cx="50" cy="50" r="42"/><circle class="g-value" cx="50" cy="50" r="42"/></svg><div class="g-label"><strong>--</strong><span>RAM</span></div></div>
+      <div class="gauge" id="gauge-bat"><svg viewBox="0 0 100 100" aria-hidden="true"><circle class="g-track" cx="50" cy="50" r="42"/><circle class="g-value" cx="50" cy="50" r="42"/></svg><div class="g-label"><strong>--</strong><span>BATT.</span></div></div>
+    </div>
+    <canvas class="spark" id="cpu-spark" aria-hidden="true"></canvas>
+
+    <div class="panel-title small"><span>MOTEUR</span></div>
+    <div class="engine-card">
+      <div class="engine-icon" aria-hidden="true"></div>
+      <div><div class="engine-name" id="engine-name">—</div><div class="engine-model" id="engine-model">—</div></div>
+    </div>
+
+    <div class="panel-title small"><span>MINUTEURS</span></div>
+    <ul class="timers" id="timers"><li class="empty">Aucun minuteur</li></ul>
+
+    <div class="panel-title small"><span>DERNIÈRE LATENCE</span><span class="panel-meta" id="latency-total"></span></div>
+    <ul class="latency" id="latency"><li class="empty">Pose une question</li></ul>
+  </aside>
+
+  <main class="center">
+    <div class="reactor-wrap">
+      <canvas id="reactor" aria-hidden="true"></canvas>
+      <div class="reactor-readout" aria-hidden="true">
+        <span id="reactor-label">EN VEILLE</span>
+        <small id="reactor-sub">DIS « HEY JARVIS »</small>
+      </div>
+    </div>
+
+    <div class="captions" aria-live="polite">
+      <div class="caption user"><span class="who">TOI</span><p id="caption-user">—</p></div>
+      <div class="caption jarvis"><span class="who">JARVIS</span><p id="caption-jarvis">Bonjour. Je suis prêt.</p></div>
+    </div>
+
+    <div class="dock">
+      <button class="dock-btn" id="btn-stop" type="button" aria-label="Arrêter la réponse" title="Arrêter (S)">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg><span>STOP</span>
+      </button>
+      <button class="talk-btn" id="btn-talk" type="button" aria-label="Parler à Jarvis" title="Parler (Espace)">
+        <span class="talk-ring" aria-hidden="true"></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>
+      </button>
+      <button class="dock-btn" id="btn-log" type="button" aria-label="Afficher le journal" title="Journal">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h9"/></svg><span>JOURNAL</span>
+      </button>
+    </div>
+  </main>
+
+  <aside class="panel panel-right" id="panel-log" aria-label="Journal">
+    <div class="panel-title"><span>JOURNAL</span><button class="text-btn" id="clear-log" type="button">EFFACER</button></div>
+    <ol class="log" id="log"></ol>
+  </aside>
+</div>
+
+<div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+<section class="drawer" id="drawer" aria-label="Réglages" aria-hidden="true">
+  <header class="drawer-head">
+    <div><div class="kicker">CONFIGURATION</div><h2>Réglages</h2></div>
+    <button class="icon-btn" id="close-settings" type="button" aria-label="Fermer les réglages">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </header>
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <div class="drawer-body" id="drawer-body"></div>
+  <footer class="drawer-foot">
+    <span class="save-status" id="save-status">Aucune modification</span>
+    <button class="btn ghost" id="reset-btn" type="button" disabled>Annuler</button>
+    <button class="btn primary" id="save-btn" type="button" disabled>Enregistrer</button>
+  </footer>
+</section>
+
+<div class="modal" id="confirm" hidden>
+  <div class="modal-card" role="alertdialog" aria-labelledby="confirm-question">
+    <div class="countdown" aria-hidden="true">
+      <svg viewBox="0 0 120 120"><circle class="c-track" cx="60" cy="60" r="54"/><circle class="c-ring" id="confirm-ring" cx="60" cy="60" r="54"/></svg>
+      <span class="countdown-icon">!</span>
+    </div>
+    <div class="kicker" id="confirm-kicker">AUTORISATION REQUISE</div>
+    <p class="modal-question" id="confirm-question"></p>
+    <p class="modal-hint">Réponds à voix haute ou choisis :</p>
+    <div class="modal-actions">
+      <button class="btn danger" type="button" data-decision="no">Refuser <kbd>Échap</kbd></button>
+      <button class="btn ghost" type="button" data-decision="always" id="confirm-always">Toujours</button>
+      <button class="btn primary" type="button" data-decision="yes">Autoriser <kbd>Entrée</kbd></button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+<script src="static/hud.js"></script>
+</body>
+</html>

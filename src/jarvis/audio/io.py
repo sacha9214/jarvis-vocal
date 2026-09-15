@@ -72,6 +72,7 @@ class Player:
 
     def __init__(self, device: int | str | None = None, sample_rate: int = 22050):
         self.rate = sample_rate
+        self.level = 0.0          # niveau RMS de la sortie, pour l'interface
         self._chunks: deque[np.ndarray] = deque()
         self._lock = threading.Lock()
         self._idle = threading.Event()
@@ -128,3 +129,4 @@ class Player:
             if not self._chunks:
                 self._idle.set()
         out[filled:] = 0
+        self.level = float(np.sqrt(np.mean(out * out))) if frames else 0.0

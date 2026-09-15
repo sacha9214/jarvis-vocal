@@ -80,6 +80,13 @@ class BrowserConfig:
 
 
 @dataclass
+class ReviewConfig:
+    claude_model: str = "sonnet"   # review en arrière-plan : la qualité compte plus que la vitesse
+    max_chars: int = 120_000       # modèle local : code relu au plus (~14 passes avec un contexte de 4096)
+    timeout_s: float = 900.0       # Claude : durée maximale d'une review
+
+
+@dataclass
 class TtsConfig:
     backend: str = "auto"          # auto (Pocket TTS, Piper si la machine est trop lente) | pocket | piper
     voice: str = "fantine"         # Pocket TTS : fantine (la plus fiable), cosette, marius, jean… ou un .wav
@@ -112,6 +119,7 @@ class Config:
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     screen: ScreenConfig = field(default_factory=ScreenConfig)
     browser: BrowserConfig = field(default_factory=BrowserConfig)
+    review: ReviewConfig = field(default_factory=ReviewConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     ui: UiConfig = field(default_factory=UiConfig)

@@ -160,6 +160,41 @@ class ClaudeCodeLLM:
                 self._plugins = []
         return self._plugins
 
+    def run_task(self, request: str, system_prompt: str, extra_args: Sequence[str] = (), model: str = "",
+                 timeout: float = 900.0) -> str:
+        """Tâche ponctuelle hors conversation (review…) : un `claude -p` dédié, isolé comme la conversation.
+        La demande passe par l'entrée standard : sous Windows, cmd.exe abîmerait un long argument."""
+        base = self._base_command()
+        workdir = self._workdir / "tache"       # dossier vide, distinct de la conversation en cours
+        workdir.mkdir(parents=True, exist_ok=True)
+        prompt_file = workdir / "system-prompt.txt"
+        prompt_file.write_text(system_prompt, encoding="utf-8")
+        settings_file = workdir / "settings.json"
+        plugins = [] if self.cfg.auth == "api_key" else self._enabled_plugins()
+        settings_file.write_text(json.dumps(isolation_settings(plugins)), encoding="utf-8")
+        args = ["-p", "--output-format", "json", "--no-session-persistence", "--model", model or self.cfg.model,
+                "--system-prompt-file", str(prompt_file), "--settings", str(settings_file),
+                "--disable-slash-commands", *extra_args]
+        if self.cfg.auth == "api_key":
+            args.insert(0, "--bare")
+        try:
+            completed = subprocess.run(base + args, input=request, capture_output=True, text=True, encoding="utf-8",
+                                       errors="replace", cwd=workdir, env=child_env(self.cfg.auth),
+                                       timeout=timeout, creationflags=_NO_WINDOW)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"Claude n'a pas terminé en {timeout / 60:.0f} minutes.") from exc
+        except OSError as exc:
+            raise RuntimeError(f"Impossible de lancer Claude Code ({exc}).") from exc
+        lines = completed.stdout.strip().splitlines()
+        try:
+            result = json.loads(lines[-1])
+        except (IndexError, ValueError):
+            detail = (completed.stderr or completed.stdout).strip().splitlines()
+            raise RuntimeError(f"Claude Code s'est arrêté ({detail[-1] if detail else 'raison inconnue'}).") from None
+        if result.get("is_error"):
+            raise RuntimeError(_error_message(result))
+        return str(result.get("result") or "").strip()
+
     # -- cycle de vie du processus
 
     def _alive(self) -> bool:

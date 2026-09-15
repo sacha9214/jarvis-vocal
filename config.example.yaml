@@ -63,6 +63,11 @@ browser:                    # pilotage du navigateur (volume des vidéos, clic, 
   enabled: true
   port: 47831               # port local du pont avec l'extension (`jarvis extension` pour l'installer)
 
+review:                     # « fais une review de mon code » : projet, changements ou fichier ouvert dans l'éditeur
+  claude_model: sonnet      # avec Claude (lecture seule du projet) ; le moteur actif est utilisé par défaut
+  max_chars: 120000         # modèle local : volume de code relu au plus
+  timeout_s: 900
+
 ui:
   window: app               # app (fenêtre Jarvis) | browser | none
   port: 0                   # 0 = port libre choisi au démarrage

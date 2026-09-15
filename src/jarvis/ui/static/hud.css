@@ -282,6 +282,9 @@ body[data-state="listening"] .talk-btn::after { animation-delay: 0.8s; }
 .log .user { border-color: rgba(115, 148, 168, 0.5); color: var(--muted); }
 .log .jarvis { border-color: var(--accent); color: var(--text-bright); }
 .log .announce { border-color: var(--green); color: var(--text-bright); }
+.log .review { border-color: var(--amber); color: var(--text-bright); }
+.log details summary { cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 4px; }
+.log .report { white-space: pre-wrap; font-family: var(--font-mono); font-size: 12px; line-height: 1.45; max-height: 320px; overflow: auto; margin: 6px 0; padding: 8px; border-radius: 8px; background: var(--panel-b); color: var(--text); }
 .log .error { border-color: var(--red); color: #ffc8c3; }
 .log .tool {
   border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: rgba(95, 216, 255, 0.04);

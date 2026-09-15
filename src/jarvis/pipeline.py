@@ -128,6 +128,10 @@ class Assistant:
             # L'analyse d'écran attend que la conversation soit finie : elle ne ralentit jamais une réponse.
             parts.screen.busy = lambda: self._current_state != "sleeping"
             parts.screen.on_observation = self._on_screen
+        if parts.review is not None:
+            parts.review.announce = self.announce
+            parts.review.busy = lambda: self._current_state != "sleeping"
+            parts.review.on_local_done = self._rewarm
 
     # -- appelés depuis d'autres fils (outils, minuteurs, interface)
 
@@ -409,8 +413,11 @@ class Assistant:
 
     def _on_screen(self, observation: Observation) -> None:
         self.bus.publish("screen", text=observation.text, app=observation.app, at=observation.at)
-        # L'image vient de remplacer la conversation dans le cache d'Ollama : on la rechauffe tout de
-        # suite, sinon la prochaine question paierait tout le prompt (~2 s de plus).
+        self._rewarm()
+
+    def _rewarm(self) -> None:
+        # L'analyse d'écran ou la review vient de remplacer la conversation dans le cache d'Ollama : on la
+        # rechauffe tout de suite, sinon la prochaine question paierait tout le prompt (~2 s de plus).
         if self.parts.llm.active == "local" and self._system:
             threading.Thread(target=self.parts.llm.warmup, args=(self._system,), name="rechauffe",
                              daemon=True).start()

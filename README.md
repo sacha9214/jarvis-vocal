@@ -53,6 +53,7 @@ sans ralentir Whisper ni le LLM sur le GPU.
 | « baisse le volume de la vidéo », « avance de 30 secondes » | vidéo du navigateur | N1 |
 | « lance la deuxième vidéo », « clique sur Paramètres » | clic dans la page | N1 |
 | « cherche des tutos Python sur YouTube », « ferme l'onglet » | recherche, onglets | N1 / N2 |
+| « fais une review de mon code », « relis mes changements avec Claude » | review en arrière-plan | N1 |
 | « qu'est-ce que tu vois ? », « c'est quoi cette erreur ? » | regarde l'écran et répond | N1 |
 | « donne-moi l'état de l'ordinateur » | batterie, processeur, mémoire | N1 |
 | « ferme Discord », « verrouille l'écran » | fermeture, verrouillage | N2 |
@@ -85,6 +86,24 @@ cuisine »), le modèle **lit d'abord la page**, puis clique.
 - **Sécurité** : le pont n'écoute que 127.0.0.1, n'accepte que des extensions (une page web ne peut
   pas s'y connecter) et exige un jeton propre à ta machine. Jarvis **refuse de cliquer** sur acheter,
   payer, supprimer, envoyer, publier, s'abonner… ; fermer un onglet ou taper du texte demande confirmation.
+
+## Review de code
+
+« Fais une review de mon code », « review de mes changements avec Claude », « relis ce fichier »,
+« fais la review du projet site vitrine » : Jarvis la lance **en arrière-plan**, te le dit, et t'annonce
+le résumé quand elle est finie. Le rapport complet arrive dans le journal de l'interface et en markdown
+dans le dossier de données (`reviews/`).
+
+- **Quel projet** : celui de ta fenêtre VS Code, Cursor, Windsurf ou VSCodium (titre et historique de
+  l'éditeur), les projets récents des IDE JetBrains, ou le dossier que tu nommes (cherché dans Bureau,
+  Documents, `dev`, `projects`, `source\repos`, OneDrive…).
+- **Quoi** : selon ta phrase, tout le projet, tes **changements non commités** (git) ou le **fichier affiché**.
+- **Avec Claude** (par défaut si Claude est le moteur actif, modèle `sonnet`) : Claude explore le projet
+  **en lecture seule** (lire, chercher, lister ; ni terminal, ni écriture), lancé hors du projet pour que
+  ses réglages et serveurs MCP ne se chargent pas. Si Claude échoue, Jarvis bascule en local et le dit.
+- **En local** : relecture par passes (le contexte du petit modèle est court), en pause pendant tes
+  conversations, 120 ko de code au plus (réglable) ; le rapport signale une review partielle.
+- « Où en est la review ? », « annule la review ».
 
 ## Analyse de l'écran
 
@@ -214,6 +233,7 @@ src/jarvis/
   llm/        Ollama, Claude Code, routeur local/Claude avec repli
   tools/      registre des actions, permissions N1/N2/N3, serveur MCP
   browser/    extension navigateur, pont WebSocket local, Safari par AppleScript
+  review/     projet ouvert dans l'éditeur, review par Claude (lecture seule) ou par le modèle local
   system/     applications, fenêtre active, volume, lecture, dossiers, alimentation (macOS + Windows)
   vision/     analyse de l'écran par le modèle local
   ui/         interface : page, API des réglages, fenêtre native
@@ -231,6 +251,10 @@ src/jarvis/
   ce qu'il vient de dire et la coupure passe par « Hey Jarvis ».
 - **Windows** : validé par la CI (installation, lint, tests) mais pas encore sur une vraie
   machine avec micro. La voix naturelle y dépend de la puissance du processeur (Piper sinon).
+- **Review locale** : sur un fichier piégé de 5 bugs, `qwen3.5:4b` en trouve 4 (secret en dur, injection
+  SQL, division par zéro, valeur par défaut mutable) sans fausse alerte, mais signale aussi un faux problème
+  sur un fichier sain du projet (~7 s par fichier). Elle repère les erreurs flagrantes ; pour une vraie
+  review, passe par Claude.
 - **Navigateur** : les actions sont testées sur une vraie page (lecture, volume, clics, refus des
   actions sensibles) et le pont par des tests automatiques ; l'extension n'a pas encore été chargée
   dans chaque navigateur. Les pages internes (`chrome://`, boutique d'extensions) restent inaccessibles.

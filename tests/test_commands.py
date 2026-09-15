@@ -51,6 +51,16 @@ def fake_apps(monkeypatch):
     ("Descends", "browser_scroll", {"direction": "down"}),
     ("Page précédente", "browser_navigate", {"direction": "back"}),
     ("Ferme l'onglet", "browser_close_tab", {}),
+    ("Fais une review de mon code", "review_code", {"scope": "project"}),
+    ("Fais une review de mes changements avec Claude", "review_code", {"scope": "changes", "engine": "claude"}),
+    ("Relis ce fichier", "review_code", {"scope": "file"}),
+    ("Fais la revue du projet Jarvis vocal en local", "review_code",
+     {"scope": "project", "engine": "local", "target": "jarvis vocal"}),
+    ("Fais une review de Jarvis vocal avec Claude", "review_code",
+     {"scope": "project", "engine": "claude", "target": "jarvis vocal"}),
+    ("Fais une review du code", "review_code", {"scope": "project"}),
+    ("Où en est la review ?", "review_control", {"action": "status"}),
+    ("Annule la review", "review_control", {"action": "cancel"}),
 ])
 def test_commands(text, tool, arguments):
     assert commands.parse(text) == commands.Command(tool, arguments)

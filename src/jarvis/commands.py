@@ -214,6 +214,42 @@ def _screen(plain: str, soft: str) -> Command | None:
     return None
 
 
+_REVIEW = r"(?:review|revue|reviou|rivieu|relecture|audit)"
+_CODE = r"(?:code|projet|fichier|changements?|modifs?|modifications?|diff)"
+
+
+def _review(plain: str, soft: str) -> Command | None:
+    if re.search(rf"\b(?:annule|arrete|stoppe) (?:la |ta )?{_REVIEW}\b", plain):
+        return Command("review_control", {"action": "cancel"})
+    if re.search(rf"\b(?:ou en est|elle avance|c est fini|tu as fini|t as fini)\b.*\b{_REVIEW}\b", plain):
+        return Command("review_control", {"action": "status"})
+    asked = (re.search(rf"\b{_REVIEW}\b", plain) and "presse" not in plain
+             and (re.search(rf"\b{_CODE}\b", plain) or re.match(r"(?:fais|fait|faire|lance|demarre) ", plain))
+             ) or re.match(rf"(?:relis|relire|audite|analyse|verifie|check)(?: moi)? (?:tout )?"
+                           rf"(?:mon|le|ce|mes|les|tout le) {_CODE}\b", plain)
+    if not asked:
+        return None
+    if re.search(r"\b(?:changements?|modifs?|modifications?|diff|ce que j ai (?:change|modifie|fait|ajoute)"
+                 r"|(?:pas|non) commite)\b", plain):
+        arguments: dict[str, Any] = {"scope": "changes"}
+    elif re.search(r"\b(?:ce fichier|le fichier|du fichier|fichier ouvert|fichier actuel|ce code)\b", plain):
+        arguments = {"scope": "file"}
+    else:
+        arguments = {"scope": "project"}
+    if re.search(r"\b(?:avec|par|sur|via) claude\b", plain):
+        arguments["engine"] = "claude"
+    elif re.search(r"\b(?:en local|localement|modele local|avec le local)\b", plain):
+        arguments["engine"] = "local"
+    engine_tail = r"(?: (?:avec|par|sur|via) claude| en local| localement)?$"
+    match = (re.search(rf"\bprojet (?P<t>.+?){engine_tail}", plain)
+             or re.search(rf"\b{_REVIEW} (?:de |du |d )(?P<t>(?!(?:mon|ma|mes|ce|cet|cette|ces|le|la|les|l|tout|toute)"
+                          rf"\b).+?){engine_tail}", plain))
+    if match and match["t"] not in ("entier", "complet", "ouvert", "actuel", "en cours") \
+            and not re.match(rf"{_CODE}\b", match["t"]):
+        arguments["target"] = _span(soft, match, "t")
+    return Command("review_code", arguments)
+
+
 _ORDINALS = {
     "premier": 1, "premiere": 1, "1er": 1, "1re": 1, "1ere": 1, "deuxieme": 2, "second": 2, "seconde": 2, "2e": 2,
     "2eme": 2, "troisieme": 3, "3e": 3, "3eme": 3, "quatrieme": 4, "4e": 4, "4eme": 4, "cinquieme": 5, "5e": 5,
@@ -301,7 +337,7 @@ def _browser(plain: str, soft: str) -> Command | None:
     return None
 
 
-_RULES = (_power, _browser, _volume, _media, _timer, _search, _screen, _close, _folder, _open)
+_RULES = (_power, _browser, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
 
 
 def parse(text: str) -> Command | None:

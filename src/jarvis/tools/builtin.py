@@ -122,6 +122,30 @@ def describe_screen(question: str = "") -> str:
     return SCREEN.look(question) or "Je n'arrive pas à voir l'écran pour le moment."
 
 
+# -- review de code (projet ouvert dans l'éditeur)
+
+REVIEW = None   # ReviewManager branché au démarrage (jarvis.app)
+
+
+@tool("review_code", "Lance en arrière-plan la review du code ouvert dans l'éditeur (VS Code, Cursor…) : scope "
+      "project (tout le projet), changes (changements non commités) ou file (fichier affiché) ; target : nom du "
+      "projet s'il est cité ; engine : claude ou local seulement si c'est demandé.",
+      {"scope": {"type": "string", "enum": ["project", "changes", "file"]}, "target": {"type": "string"},
+       "engine": {"type": "string", "enum": ["auto", "claude", "local"]}})
+def review_code(scope: str = "project", target: str = "", engine: str = "auto") -> str:
+    if REVIEW is None:
+        return "La review de code n'est pas disponible."
+    return REVIEW.start(scope, target, engine)
+
+
+@tool("review_control", "Review de code en cours : status (où elle en est) ou cancel (l'arrêter).",
+      {"action": {"type": "string", "enum": ["status", "cancel"]}}, ("action",))
+def review_control(action: str) -> str:
+    if REVIEW is None:
+        return "Aucune review en cours."
+    return REVIEW.cancel() if action == "cancel" else REVIEW.status()
+
+
 # -- navigateur (extension Jarvis, ou Safari sur macOS)
 
 BROWSER = None   # BrowserController branché au démarrage (jarvis.app)

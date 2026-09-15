@@ -100,6 +100,16 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
             ("", "Par défaut"), ("low", "Faible · plus rapide"), ("medium", "Moyenne"), ("high", "Élevée"))),
         Field("claude.fallback_to_local", "Repli local si Claude échoue", "toggle"),
     ]),
+    ("review", "Review de code", "« Fais une review de mon code » : le projet ouvert dans ton éditeur est relu en "
+     "arrière-plan, par le moteur actif ; le résumé est dit à voix haute, le rapport arrive dans le journal.", [
+        Field("review.claude_model", "Modèle Claude pour la review", "select", options=(
+            ("haiku", "Haiku · rapide, review superficielle"),
+            ("sonnet", "Sonnet · recommandé"),
+            ("opus", "Opus · le plus poussé, consomme davantage"))),
+        Field("review.max_chars", "Code relu par le modèle local", "slider", min=20_000, max=400_000, step=20_000,
+              unit="caractères", help="Au-delà, la review locale est partielle et le rapport le signale."),
+        Field("review.timeout_s", "Durée maximale avec Claude", "slider", min=120, max=1800, step=60, unit="s"),
+    ]),
 ]
 FIELDS = {field.key: field for _, _, _, fields in SECTIONS for field in fields}
 _LIVE_EXTRA = {"tools.enabled", "tools.always_allow", "tools.disabled"}   # gérés par l'onglet Permissions

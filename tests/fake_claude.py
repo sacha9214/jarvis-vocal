@@ -34,7 +34,18 @@ if "--settings" in args:
 if log := os.environ.get("FAKE_CLAUDE_LOG"):
     env = {k: v for k, v in os.environ.items() if k.startswith(("CLAUDE", "ANTHROPIC", "ENABLE_CLAUDEAI"))}
     with open(log, "a", encoding="utf-8") as file:
-        file.write(json.dumps({"argv": args, "settings": settings, "env": env}) + "\n")
+        file.write(json.dumps({"argv": args, "settings": settings, "env": env, "cwd": os.getcwd()}) + "\n")
+
+if "--input-format" not in args:      # tâche ponctuelle : demande sur l'entrée standard, résultat JSON
+    request = sys.stdin.read()
+    if MODE == "error":
+        print(json.dumps({"type": "result", "is_error": True,
+                          "result": "Failed to authenticate: OAuth session expired and could not be refreshed"}))
+    else:
+        print(json.dumps({"type": "result", "is_error": False, "result":
+                          f"RÉSUMÉ : Relu {len(request)} caractères.\n\n## Problèmes importants\n- Aucun."},
+                         ensure_ascii=False))
+    sys.exit(0)
 
 interrupted = threading.Event()
 

@@ -18,6 +18,10 @@
     open_folder: "Ouverture de dossier", media: "Lecture", set_volume: "Volume", set_timer: "Minuteur",
     cancel_timer: "Annulation de minuteur", system_status: "État du système", close_app: "Fermeture d'application",
     lock_screen: "Verrouillage", power: "Alimentation", cancel_power: "Annulation d'extinction",
+    describe_screen: "Regard sur l'écran", browser_media: "Vidéo du navigateur", browser_read: "Lecture de la page",
+    browser_open: "Clic dans la page", browser_scroll: "Défilement", browser_navigate: "Navigation",
+    browser_search: "Recherche dans le navigateur", browser_tabs: "Onglets", browser_close_tab: "Fermeture d'onglet",
+    browser_type: "Saisie dans la page", review_code: "Review de code", review_control: "Suivi de la review",
   };
   const MARKS = [["stt", "Transcription"], ["fastpath", "Réflexe"], ["llm_first_token", "1er token"],
                  ["first_chunk", "1re phrase"], ["tool", "Action"], ["first_audio", "1er son"]];
@@ -562,6 +566,24 @@
         logEntry("announce", `<span class="k">NAVIGATEUR</span>${names.length ? `${esc(names.join(", "))} relié à Jarvis` : "Aucun navigateur relié"}`);
         break;
       }
+      case "review_started":
+        store.reviewLi = logEntry("review", `<span class="k">REVIEW</span>${esc(event.label)} lancée avec ${event.engine === "claude" ? "Claude" : "le modèle local"} <span class="tool-args review-progress"></span>`);
+        break;
+      case "review_progress": {
+        const progress = store.reviewLi && store.reviewLi.querySelector(".review-progress");
+        if (progress) progress.textContent = `${event.done}/${event.total}`;
+        break;
+      }
+      case "review_cancelled":
+        logEntry("announce", `<span class="k">REVIEW</span>${esc(event.label)} arrêtée`);
+        break;
+      case "review":
+        logEntry("review",
+          `<div class="tool-head"><span class="tool-name">REVIEW</span><span class="chip N1">${event.engine === "claude" ? "CLAUDE" : "LOCAL"}</span></div>` +
+          `<div>${esc(event.summary)}</div>` + (event.note ? `<div class="tool-args">${esc(event.note)}</div>` : "") +
+          `<details><summary>Rapport complet</summary><pre class="report">${esc(event.report)}</pre>` +
+          `<div class="tool-args">${esc(event.path)}</div></details>`);
+        break;
       case "user":
         $("#caption-user").textContent = event.text;
         logEntry("user", `<span class="k">TOI</span>${esc(event.text)}`);

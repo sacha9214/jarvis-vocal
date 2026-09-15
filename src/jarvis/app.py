@@ -18,6 +18,7 @@ from .config import Config
 from .events import EventBus
 from .llm import load_llm
 from .llm.router import CLAUDE, Router
+from .review import ReviewManager
 from .server import LocalServer, start_server
 from .stt import SpeechToText, load_stt
 from .system.foreground import ForegroundTracker
@@ -64,6 +65,15 @@ def build_executor(cfg: Config) -> ToolExecutor:
     return ToolExecutor(cfg.tools, on_always=remember)
 
 
+def claude_task(cfg: Config, llm: Router) -> Callable[[str, str, list[str]], str]:
+    def run(request: str, system: str, args: list[str]) -> str:
+        backend = llm.backends.get(CLAUDE)
+        if backend is None or not hasattr(backend, "run_task"):
+            raise RuntimeError("Claude Code n'est pas disponible")
+        return backend.run_task(request, system, args, model=cfg.review.claude_model, timeout=cfg.review.timeout_s)
+    return run
+
+
 @dataclass
 class Components:
     stt: SpeechToText
@@ -76,6 +86,7 @@ class Components:
     screen: ScreenWatcher | None = None
     foreground: ForegroundTracker | None = None
     browser: BrowserController | None = None
+    review: ReviewManager | None = None
 
 
 def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, executor: ToolExecutor | None = None,
@@ -102,6 +113,9 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
                               on_change=lambda names: bus.publish("browsers", names=names))
         browser = BrowserController(bridge, foreground)
     builtin.BROWSER = browser
+    review = ReviewManager(cfg, engine=lambda: llm.active, window=lambda: foreground.last_editor() or foreground.last(),
+                           bus=bus, claude=claude_task(cfg, llm))
+    builtin.REVIEW = review
 
     def timed[T](label: str, build: Callable[[], T]) -> T:
         start = time.perf_counter()
@@ -129,4 +143,4 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
         stt = timed("Transcription", warm_stt)
         wakeword, vad = ears_future.result()
         return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server, screen,
-                          foreground, browser)
+                          foreground, browser, review)

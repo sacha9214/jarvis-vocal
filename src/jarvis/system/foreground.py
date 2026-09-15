@@ -38,6 +38,7 @@ class Foreground:
     title: str
     pid: int | None
     at: float
+    handle: int | None = None     # Windows : fenêtre (HWND), pour la lire et la piloter
 
     @property
     def is_browser(self) -> bool:
@@ -75,7 +76,7 @@ def probe() -> Foreground | None:
             pid = wintypes.DWORD()
             user32.GetWindowThreadProcessId(handle, ctypes.byref(pid))
             exe = Path(psutil.Process(pid.value).name()).stem
-            return Foreground(_WINDOWS_NAMES.get(exe.lower(), exe), buffer.value, pid.value, time.time())
+            return Foreground(_WINDOWS_NAMES.get(exe.lower(), exe), buffer.value, pid.value, time.time(), int(handle))
     except Exception:  # noqa: BLE001 - indice de contexte, jamais bloquant
         return None
     return None
@@ -129,8 +130,9 @@ class ForegroundTracker:
             return next((f for f in reversed(self._history) if f.is_editor), None)
 
     def context(self) -> str:
-        """« browser », « code » ou « » selon l'application utilisée juste avant de parler à Jarvis."""
+        """« browser », « code », « app » (toute autre application) ou « » selon l'application utilisée juste avant
+        de parler à Jarvis."""
         current = self.last()
         if current is None:
             return ""
-        return "browser" if current.is_browser else "code" if current.is_editor else ""
+        return "browser" if current.is_browser else "code" if current.is_editor else "app"

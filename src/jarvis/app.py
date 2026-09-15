@@ -15,6 +15,7 @@ from .browser import install as browser_install
 from .browser.bridge import start_bridge
 from .browser.controller import BrowserController
 from .config import Config
+from .desktop import DesktopController
 from .events import EventBus
 from .llm import load_llm
 from .llm.router import CLAUDE, Router
@@ -87,6 +88,7 @@ class Components:
     foreground: ForegroundTracker | None = None
     browser: BrowserController | None = None
     review: ReviewManager | None = None
+    desktop: DesktopController | None = None
 
 
 def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, executor: ToolExecutor | None = None,
@@ -116,6 +118,8 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
     review = ReviewManager(cfg, engine=lambda: llm.active, window=lambda: foreground.last_editor() or foreground.last(),
                            bus=bus, claude=claude_task(cfg, llm))
     builtin.REVIEW = review
+    desktop = DesktopController(foreground)     # UI Automation ou AX chargés au premier usage
+    builtin.DESKTOP = desktop
 
     def timed[T](label: str, build: Callable[[], T]) -> T:
         start = time.perf_counter()
@@ -143,4 +147,4 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
         stt = timed("Transcription", warm_stt)
         wakeword, vad = ears_future.result()
         return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server, screen,
-                          foreground, browser, review)
+                          foreground, browser, review, desktop)

@@ -146,6 +146,48 @@ def review_control(action: str) -> str:
     return REVIEW.cancel() if action == "cancel" else REVIEW.status()
 
 
+# -- toute application (UI Automation sous Windows, accessibilité sous macOS)
+
+DESKTOP = None   # DesktopController branché au démarrage (jarvis.app)
+
+
+def _desktop_call(action) -> str:
+    if DESKTOP is None:
+        return "Le pilotage des applications n'est pas disponible."
+    try:
+        return action(DESKTOP)
+    except Exception as exc:  # noqa: BLE001 - autorisation manquante, fenêtre fermée : dit tel quel
+        return str(exc)
+
+
+@tool("app_read", "Lit l'application au premier plan (Word, Outlook, Discord, Explorateur, Réglages, VS Code…) : "
+      "titre, texte visible et liste numérotée des boutons, menus, onglets et champs. À utiliser pour résumer, "
+      "relire ou expliquer ce qui est affiché, et avant app_press.", context="app,code", speaks=False)
+def app_read() -> str:
+    return _desktop_call(lambda desktop: desktop.read())
+
+
+@tool("app_press", "Clique un bouton, un menu, un onglet ou un lien de l'application au premier plan : index "
+      "(numéro donné par app_read) ou text (son nom).", {"index": {"type": "integer"}, "text": {"type": "string"}},
+      context="app,code")
+def app_press(index: int | None = None, text: str = "") -> str:
+    return _desktop_call(lambda desktop: desktop.press(index, text, forbid=RISKY))
+
+
+@tool("app_type", "Tape du texte dans le champ actif de l'application au premier plan, et valide si submit est vrai.",
+      {"text": {"type": "string"}, "submit": {"type": "boolean"}}, ("text",), level=N2,
+      confirm=lambda a: f"Je tape « {str(a.get('text', ''))[:80]} » ?", context="app,code")
+def app_type(text: str, submit: bool = False) -> str:
+    return _desktop_call(lambda desktop: desktop.type(text, submit))
+
+
+@tool("app_shortcut", "Envoie un raccourci clavier à l'application au premier plan, ex. ctrl+s, ctrl+shift+t, alt+f4.",
+      {"keys": {"type": "string"}}, ("keys",), level=N2,
+      confirm=lambda a: f"J'appuie sur {a.get('keys', 'ce raccourci')} ?", context="app,code")
+def app_shortcut(keys: str) -> str:
+    return _desktop_call(lambda desktop: desktop.shortcut(keys))
+
+
 # -- navigateur (extension Jarvis, ou Safari sur macOS)
 
 BROWSER = None   # BrowserController branché au démarrage (jarvis.app)

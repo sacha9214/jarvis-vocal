@@ -10,6 +10,7 @@ import httpx
 from . import assets, hardware
 from .config import Config
 from .paths import models_dir
+from .system import IS_MAC, IS_WINDOWS
 
 _SYMBOLS = {"ok": "✅", "warn": "⚠️ ", "fail": "❌"}
 
@@ -58,6 +59,20 @@ def doctor(cfg: Config) -> int:
         line("ok" if built else "warn", "Pilotage du navigateur",
              f"extension prête (port {cfg.browser.port}), à charger dans ton navigateur" if built
              else "lance `jarvis extension`, puis charge l'extension dans ton navigateur")
+
+    if IS_MAC:
+        try:
+            from ApplicationServices import AXIsProcessTrusted
+            trusted = bool(AXIsProcessTrusted())
+        except ImportError:
+            trusted = False
+        line("ok" if trusted else "warn", "Lecture des applications (Accessibilité)",
+             "autorisée" if trusted else "Réglages Système › Confidentialité et sécurité › Accessibilité : "
+             "active ton terminal")
+    elif IS_WINDOWS:
+        found = importlib.util.find_spec("uiautomation") is not None
+        line("ok" if found else "warn", "Lecture des applications (UI Automation)",
+             "disponible" if found else "paquet uiautomation absent : `uv sync`")
 
     import sounddevice as sd
     for kind, device, label in (("input", cfg.audio.input_device, "Micro"),

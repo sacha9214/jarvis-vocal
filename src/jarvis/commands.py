@@ -9,6 +9,7 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any
 
+from .desktop import parse_keys
 from .system import apps, folders, web
 
 
@@ -250,6 +251,21 @@ def _review(plain: str, soft: str) -> Command | None:
     return Command("review_code", arguments)
 
 
+def _app(plain: str, soft: str) -> Command | None:
+    """Hors du navigateur : l'application au premier plan (Word, Discord, Réglages…)."""
+    if match := re.fullmatch(r"(?:clique|appuie) sur (?:le bouton |le menu |l onglet |le lien |la touche )?(?P<t>.+)",
+                             plain):
+        if keys := parse_keys(match["t"]):
+            return Command("app_shortcut", {"keys": "+".join(keys)})
+        return Command("app_press", {"text": _span(soft, match, "t")})
+    if match := re.fullmatch(r"(?:fais|envoie|utilise)(?: le raccourci)? (?P<k>.+)", plain):
+        if keys := parse_keys(match["k"]):
+            return Command("app_shortcut", {"keys": "+".join(keys)})
+    if re.fullmatch(r"(?:enregistre|sauvegarde|sauve)(?: le fichier| le document| mon travail| tout)?", plain):
+        return Command("app_shortcut", {"keys": "ctrl+s"})
+    return None
+
+
 _ORDINALS = {
     "premier": 1, "premiere": 1, "1er": 1, "1re": 1, "1ere": 1, "deuxieme": 2, "second": 2, "seconde": 2, "2e": 2,
     "2eme": 2, "troisieme": 3, "3e": 3, "3eme": 3, "quatrieme": 4, "4e": 4, "4eme": 4, "cinquieme": 5, "5e": 5,
@@ -338,9 +354,11 @@ def _browser(plain: str, soft: str) -> Command | None:
 
 
 _RULES = (_power, _browser, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
+_APP_RULES = (_power, _app, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
 
 
-def parse(text: str) -> Command | None:
+def parse(text: str, context: str = "") -> Command | None:
+    """`context` : « browser », « code », « app » ou « » (inconnu : les règles du navigateur s'appliquent)."""
     plain, soft = _aligned(text)
     if lead := _LEAD.match(plain):
         plain, soft = plain[lead.end():], soft[lead.end():]
@@ -349,7 +367,7 @@ def parse(text: str) -> Command | None:
     plain, soft = plain.strip(), soft.strip()
     if not plain:
         return None
-    for rule in _RULES:
+    for rule in _APP_RULES if context in ("app", "code") else _RULES:
         if command := rule(plain, soft):
             return command
     return None

@@ -22,6 +22,8 @@
     browser_open: "Clic dans la page", browser_scroll: "Défilement", browser_navigate: "Navigation",
     browser_search: "Recherche dans le navigateur", browser_tabs: "Onglets", browser_close_tab: "Fermeture d'onglet",
     browser_type: "Saisie dans la page", review_code: "Review de code", review_control: "Suivi de la review",
+    app_read: "Lecture de l'application", app_press: "Clic dans l'application", app_type: "Saisie dans l'application",
+    app_shortcut: "Raccourci clavier",
   };
   const MARKS = [["stt", "Transcription"], ["fastpath", "Réflexe"], ["llm_first_token", "1er token"],
                  ["first_chunk", "1re phrase"], ["tool", "Action"], ["first_audio", "1er son"]];

@@ -13,10 +13,11 @@ def system_prompt(user_name: str, today: date, tools: bool = False) -> str:
     day = f"{_JOURS[today.weekday()]} {today.day} {_MOIS[today.month - 1]} {today.year}"
     actions = (
         "Tu peux agir sur son ordinateur avec tes outils (ouvrir des applications ou des sites, régler le son, "
-        "contrôler la musique, lancer des minuteurs, piloter les vidéos et les pages du navigateur…). Quand la "
-        "demande est une action, appelle l'outil directement, sans demander la permission : Jarvis demande "
-        "lui-même confirmation pour les actions sensibles. Pour choisir un élément d'une page que tu ne connais "
-        "pas encore, lis d'abord la page avec browser_read.\n" if tools else "")
+        "contrôler la musique, lancer des minuteurs, piloter les vidéos et les pages du navigateur, lire et piloter "
+        "l'application ouverte…). Quand la demande est une action, appelle l'outil directement, sans demander la "
+        "permission : Jarvis demande lui-même confirmation pour les actions sensibles. Pour un élément ou un contenu "
+        "que tu ne connais pas encore, lis d'abord la page (browser_read) ou l'application (app_read).\n"
+        if tools else "")
     return (
         f"Tu es Jarvis, l'assistant vocal personnel de {who}. Tu t'adresses directement à {who} "
         "et tu tutoies.\n"

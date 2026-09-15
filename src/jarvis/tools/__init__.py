@@ -33,7 +33,7 @@ class Tool:
     level: str
     handler: Callable[..., str]
     confirm: Callable[[dict[str, Any]], str] | None = None
-    context: str = ""          # "" : toujours proposé ; sinon seulement dans ce contexte
+    context: str = ""          # "" : toujours proposé ; sinon seulement dans ces contextes (« app,code »)
     speaks: bool = True        # False : le résultat retourne au modèle au lieu d'être dit
 
     def schema(self) -> dict[str, Any]:
@@ -109,7 +109,8 @@ class ToolExecutor:
         if not self.cfg.enabled:
             return []
         return [t for name, t in REGISTRY.items()
-                if name not in self.cfg.disabled and (context is None or not t.context or t.context == context)]
+                if name not in self.cfg.disabled
+                and (context is None or not t.context or context in t.context.split(","))]
 
     def schemas(self, context: str | None = None) -> list[dict[str, Any]]:
         return [t.schema() for t in self.tools(context)]

@@ -53,6 +53,7 @@ sans ralentir Whisper ni le LLM sur le GPU.
 | « baisse le volume de la vidéo », « avance de 30 secondes » | vidéo du navigateur | N1 |
 | « lance la deuxième vidéo », « clique sur Paramètres » | clic dans la page | N1 |
 | « cherche des tutos Python sur YouTube », « ferme l'onglet » | recherche, onglets | N1 / N2 |
+| « résume ce document », « clique sur Envoyer », « enregistre le fichier » | lit et pilote l'application ouverte | N1 / N2 |
 | « fais une review de mon code », « relis mes changements avec Claude » | review en arrière-plan | N1 |
 | « qu'est-ce que tu vois ? », « c'est quoi cette erreur ? » | regarde l'écran et répond | N1 |
 | « donne-moi l'état de l'ordinateur » | batterie, processeur, mémoire | N1 |
@@ -86,6 +87,25 @@ cuisine »), le modèle **lit d'abord la page**, puis clique.
 - **Sécurité** : le pont n'écoute que 127.0.0.1, n'accepte que des extensions (une page web ne peut
   pas s'y connecter) et exige un jeton propre à ta machine. Jarvis **refuse de cliquer** sur acheter,
   payer, supprimer, envoyer, publier, s'abonner… ; fermer un onglet ou taper du texte demande confirmation.
+
+## Toute application
+
+Hors du navigateur, Jarvis lit et pilote l'application que tu utilises — Word, Outlook, Discord,
+l'Explorateur, les Réglages, ton éditeur — par l'**accessibilité du système**, celle des lecteurs d'écran :
+« résume ce document », « c'est quoi ce message ? », « clique sur Envoyer », « appuie sur contrôle S ».
+
+| Système | Comment | À autoriser |
+|---|---|---|
+| Windows 10/11 | UI Automation | rien |
+| macOS | API d'accessibilité (AX) | Réglages Système › Confidentialité et sécurité › Accessibilité, pour ton terminal |
+
+- Jarvis **lit d'abord** (titre, texte visible, boutons et menus numérotés), puis clique par numéro ou par nom.
+- Les éléments sont activés **sans bouger la souris** quand le système le permet.
+- Le contenu des **champs de mot de passe n'est jamais lu**.
+- Mêmes garde-fous que dans le navigateur : Jarvis refuse acheter, payer, supprimer, envoyer, publier… et
+  refuse aussi un « Oui » dans une fenêtre qui parle de supprimer. Taper du texte et envoyer un raccourci
+  demandent confirmation (N2).
+- « Contrôle S » devient **Cmd+S** sur Mac : c'est ce que veut dire quelqu'un qui vient de Windows.
 
 ## Review de code
 
@@ -234,6 +254,7 @@ src/jarvis/
   tools/      registre des actions, permissions N1/N2/N3, serveur MCP
   browser/    extension navigateur, pont WebSocket local, Safari par AppleScript
   review/     projet ouvert dans l'éditeur, review par Claude (lecture seule) ou par le modèle local
+  desktop/    lecture et pilotage de toute application (UI Automation, accessibilité macOS)
   system/     applications, fenêtre active, volume, lecture, dossiers, alimentation (macOS + Windows)
   vision/     analyse de l'écran par le modèle local
   ui/         interface : page, API des réglages, fenêtre native
@@ -251,6 +272,9 @@ src/jarvis/
   ce qu'il vient de dire et la coupure passe par « Hey Jarvis ».
 - **Windows** : validé par la CI (installation, lint, tests) mais pas encore sur une vraie
   machine avec micro. La voix naturelle y dépend de la puissance du processeur (Piper sinon).
+- **Applications** : la lecture et la saisie sont vérifiées pour de vrai (TextEdit sur macOS, Bloc-notes
+  sur la CI Windows), mais certaines applications exposent peu de choses à l'accessibilité (jeux, applications
+  Electron mal étiquetées) : Jarvis dit alors qu'il ne voit rien plutôt que de cliquer au hasard.
 - **Review locale** : sur un fichier piégé de 5 bugs, `qwen3.5:4b` en trouve 4 (secret en dur, injection
   SQL, division par zéro, valeur par défaut mutable) sans fausse alerte, mais signale aussi un faux problème
   sur un fichier sain du projet (~7 s par fichier). Elle repère les erreurs flagrantes ; pour une vraie

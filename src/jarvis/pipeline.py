@@ -225,7 +225,7 @@ class Assistant:
             return self.parts.llm.describe()
         if quick := fastpath.reply(text):
             return quick
-        if self.cfg.tools.enabled and (command := commands.parse(text)):
+        if self.cfg.tools.enabled and (command := commands.parse(text, self._context())):
             return self.parts.executor.run(command.tool, command.arguments)
         return None
 

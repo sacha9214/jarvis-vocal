@@ -277,7 +277,11 @@ class ClaudeCodeLLM:
                 self._start(system)
             missed = self._missed_turns(conversation)
             user_text = conversation[-1][1]
-            self._send({"type": "user", "message": {"role": "user", "content": self._compose(missed, user_text)}})
+            content = self._compose(missed, user_text)
+            # Messages système ajoutés après le prompt (contexte de l'écran) : joints à la question.
+            if extra := [m["content"] for m in messages[1:] if m.get("role") == "system"]:
+                content = "\n".join(extra) + "\n\n" + content
+            self._send({"type": "user", "message": {"role": "user", "content": content}})
             self._turn_open = True
             reply: list[str] = []
             try:

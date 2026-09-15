@@ -537,6 +537,20 @@
   function handle(event) {
     switch (event.type) {
       case "state": setState(event.state); break;
+      case "screen":
+        store.screenAt = event.at;
+        $("#activity-app").textContent = (event.app || "ÉCRAN").toUpperCase();
+        $("#activity-text").textContent = event.text;
+        $("#activity").classList.remove("fresh");
+        void $("#activity").offsetWidth;
+        $("#activity").classList.add("fresh");
+        if (!store.screenTimer) {
+          store.screenTimer = setInterval(() => {
+            const age = Math.max(0, Math.round(Date.now() / 1000 - store.screenAt));
+            $("#activity-age").textContent = age < 60 ? `il y a ${age} s` : `il y a ${Math.round(age / 60)} min`;
+          }, 1000);
+        }
+        break;
       case "loading":
         $("#reactor-sub").textContent = `PRÊT · ${String(event.label).toUpperCase()}`;
         logEntry("announce", `<span class="k">SYSTÈME</span>${esc(event.label)} prêt en ${event.ms} ms`);
@@ -784,6 +798,7 @@
       Demo.handler = handler;
       handler({ type: "engine", active: "local", model: "qwen3.5:4b-mlx" });
       handler({ type: "state", state: "sleeping" });
+      handler({ type: "screen", app: "Visual Studio Code", text: "Sacha modifie le fichier pipeline.py d'un projet Python.", at: Date.now() / 1000 });
       const script = [
         [1500, { type: "state", state: "listening" }], [2600, { type: "user", text: "Ouvre Spotify et mets le son à trente" }],
         [300, { type: "state", state: "thinking" }],

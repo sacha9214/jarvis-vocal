@@ -200,7 +200,21 @@ def _open(plain: str, soft: str) -> Command | None:
     return None
 
 
-_RULES = (_power, _volume, _media, _timer, _search, _close, _folder, _open)
+_SCREEN_ASK = re.compile(r"(?:regarde|qu est ce|c est quoi|explique|aide|lis|traduis|resume|tu vois|decris|dis moi"
+                         r"|tu peux voir|corrige)")
+_SCREEN_TOPIC = re.compile(r"\b(?:ecran|cette erreur|ce message|cette page|cette fenetre|ce code|ce texte"
+                           r"|ce document|ce que je fais)\b")
+
+
+def _screen(plain: str, soft: str) -> Command | None:
+    if re.fullmatch(r"qu est ce que tu vois|tu vois quoi|regarde (?:mon |l )?ecran|decris (?:mon |l )?ecran", plain):
+        return Command("describe_screen")
+    if _SCREEN_ASK.match(plain) and _SCREEN_TOPIC.search(plain):
+        return Command("describe_screen", {"question": soft})
+    return None
+
+
+_RULES = (_power, _volume, _media, _timer, _search, _screen, _close, _folder, _open)
 
 
 def parse(text: str) -> Command | None:

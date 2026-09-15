@@ -17,17 +17,32 @@ from .llm import load_llm
 from .llm.router import CLAUDE, Router
 from .server import LocalServer, start_server
 from .stt import SpeechToText, load_stt
-from .tools import ToolExecutor
+from .tools import ToolExecutor, builtin
 from .tts import TextToSpeech
+from .vision.screen import ScreenWatcher, ollama_describer
 
 LOG = logging.getLogger("jarvis")
 
 
 def build_tts(cfg: Config) -> TextToSpeech:
-    if cfg.tts.backend != "piper":
-        raise ValueError(f"Backend de voix inconnu : {cfg.tts.backend} (disponible : piper)")
+    """Voix prête à parler (chargée et chauffée) : Pocket TTS si possible, sinon Piper."""
+    backend = cfg.tts.backend
+    if backend not in ("auto", "pocket", "piper"):
+        raise ValueError(f"Moteur de voix inconnu : {backend} (auto, pocket, piper)")
+    if backend in ("auto", "pocket"):
+        try:
+            from .tts.pocket_backend import PocketTTS
+            tts: TextToSpeech = PocketTTS(cfg.tts.voice, temperature=cfg.tts.temperature)
+            tts.warmup()
+            return tts
+        except Exception as exc:  # noqa: BLE001 - modèle absent, voix inconnue, machine trop lente…
+            if backend == "pocket":
+                raise RuntimeError(f"Voix Pocket TTS indisponible : {exc}") from exc
+            LOG.warning("Voix Pocket TTS indisponible (%s) : voix Piper à la place.", exc)
     from .tts.piper_backend import PiperTTS
-    return PiperTTS(assets.piper_voice(cfg.tts.voice), cfg.tts.length_scale)
+    tts = PiperTTS(assets.piper_voice(cfg.tts.piper_voice), cfg.tts.length_scale)
+    tts.warmup()
+    return tts
 
 
 def build_wakeword(cfg: Config) -> WakeWord:
@@ -54,6 +69,7 @@ class Components:
     vad: SileroVad
     executor: ToolExecutor
     server: LocalServer | None = None
+    screen: ScreenWatcher | None = None
 
 
 def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, executor: ToolExecutor | None = None,
@@ -70,6 +86,9 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
         if configure := getattr(llm.backends.get(CLAUDE), "configure_tools", None):
             configure(server.mcp_url, server.token)
     llm.check()
+    # Toujours créé (activable en direct depuis l'interface) ; il ne capture que si screen.enabled.
+    screen = ScreenWatcher(cfg.screen, ollama_describer(cfg))
+    builtin.SCREEN = screen
 
     def timed[T](label: str, build: Callable[[], T]) -> T:
         start = time.perf_counter()
@@ -101,4 +120,4 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
         ears_future = pool.submit(timed, "Mot d'activation", lambda: (build_wakeword(cfg), build_vad(cfg)))
         stt = timed("Transcription", warm_stt)
         wakeword, vad = ears_future.result()
-        return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server)
+        return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server, screen)

@@ -9,6 +9,8 @@ Une étape à la fois. Chacune arrive testée, mesurée et documentée avant la 
 | 3 | **Actions sur le PC, macOS + Windows** : registre d'outils, niveaux N1/N2/N3, confirmation vocale ou d'un clic, commandes sans LLM, serveur MCP pour Claude | ✅ |
 | 3b | **Compréhension de la voix** : vocabulaire de Whisper, garde-fous anti-boucle, correspondance phonétique des noms, phrases inachevées | ✅ |
 | 3c | **Interface** : réacteur animé, journal, système, réglages en direct, permissions, fenêtre native | ✅ |
+| 3d | **Voix naturelle** : Pocket TTS (Fantine, mesurée sur réponses courtes), Piper en secours, coupure des emballements | ✅ |
+| 3e | **Analyse de l'écran** : modèle de vision local, pause pendant les conversations, regard immédiat sur question | ✅ |
 | 4 | **Intégrations une par une** (agenda, domotique, mail…), chacune optionnelle et testée | à faire |
 | 5 | **Démarrage automatique et annulation d'écho** | à faire |
 

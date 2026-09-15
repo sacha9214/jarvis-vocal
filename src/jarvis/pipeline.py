@@ -38,6 +38,7 @@ from .text.chunker import SpeechChunker
 from .tools import ALWAYS, NO, YES, ToolResult
 from .tools.builtin import POWER, TIMERS
 from .tts import TextToSpeech
+from .vision.screen import Observation
 
 LOG = logging.getLogger("jarvis")
 _ECHO_GUARD_S = 0.35   # après une réponse, ignore la réverbération de sa propre voix
@@ -108,6 +109,7 @@ class Assistant:
         self.history: list[Message] = []
         self.manual_wake = threading.Event()
         self._stop_requested = threading.Event()
+        self._current_state = "sleeping"
         self._last_reply = ""
         self._system = ""
         self._system_key: tuple[date, str, bool] | None = None
@@ -121,6 +123,10 @@ class Assistant:
         parts.executor.on_result = self._on_tool_result
         TIMERS.announce = self.announce
         POWER.announce = self.announce
+        if parts.screen is not None:
+            # L'analyse d'écran attend que la conversation soit finie : elle ne ralentit jamais une réponse.
+            parts.screen.busy = lambda: self._current_state != "sleeping"
+            parts.screen.on_observation = self._on_screen
 
     # -- appelés depuis d'autres fils (outils, minuteurs, interface)
 
@@ -147,6 +153,8 @@ class Assistant:
         wakeword = self.parts.wakeword
         self._publish_engine()
         self._state("sleeping")
+        if self.parts.screen is not None:
+            self.parts.screen.start()
         LOG.info("À l'écoute : dis « Hey Jarvis ». %s", self.parts.llm.describe())
         for frame in frames:
             if self._tick(frame, frames):
@@ -365,6 +373,7 @@ class Assistant:
                              out=round(float(getattr(self.player, "level", 0.0)), 4))
 
     def _state(self, name: str) -> None:
+        self._current_state = name
         self.bus.publish("state", state=name)
 
     def _publish_engine(self) -> None:
@@ -374,12 +383,24 @@ class Assistant:
         self.bus.publish("tool", name=result.name, arguments=result.arguments, level=result.level,
                          text=result.text, allowed=result.allowed, ms=round(result.ms))
 
+    def _on_screen(self, observation: Observation) -> None:
+        self.bus.publish("screen", text=observation.text, app=observation.app, at=observation.at)
+        # L'image vient de remplacer la conversation dans le cache d'Ollama : on la rechauffe tout de
+        # suite, sinon la prochaine question paierait tout le prompt (~2 s de plus).
+        if self.parts.llm.active == "local" and self._system:
+            threading.Thread(target=self.parts.llm.warmup, args=(self._system,), name="rechauffe",
+                             daemon=True).start()
+
     def _messages(self, text: str) -> list[Message]:
         key = (date.today(), self.cfg.user_name, self.cfg.tools.enabled)
         if key != self._system_key:
             self._system = prompts.system_prompt(self.cfg.user_name, key[0], tools=self.cfg.tools.enabled)
             self._system_key = key
-        return [{"role": "system", "content": self._system}, *self.history, {"role": "user", "content": text}]
+        messages: list[Message] = [{"role": "system", "content": self._system}, *self.history]
+        # Contexte écran juste avant la question : le début du prompt reste identique (cache KV).
+        if self.parts.screen is not None and (context := self.parts.screen.context()):
+            messages.append({"role": "system", "content": context})
+        return [*messages, {"role": "user", "content": text}]
 
     def _is_echo(self, text: str) -> bool:
         """Le micro a-t-il simplement réentendu la dernière réponse dans les haut-parleurs ?"""

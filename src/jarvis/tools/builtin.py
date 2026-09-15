@@ -100,3 +100,15 @@ def power_action(action: str) -> str:
 @tool("cancel_power", "Annule une extinction, un redémarrage ou une mise en veille programmés.")
 def cancel_power() -> str:
     return POWER.cancel()
+
+
+SCREEN = None   # ScreenWatcher branché au démarrage (jarvis.app)
+
+
+@tool("describe_screen", "Regarde l'écran de l'utilisateur maintenant : répond à une question sur ce qui est "
+      "affiché (erreur, page, document, code) ou décrit ce qu'il est en train de faire.",
+      {"question": {"type": "string", "description": "la question de l'utilisateur sur son écran"}})
+def describe_screen(question: str = "") -> str:
+    if SCREEN is None or not SCREEN.cfg.enabled:
+        return "L'analyse d'écran est désactivée dans les réglages."
+    return SCREEN.look(question) or "Je n'arrive pas à voir l'écran pour le moment."

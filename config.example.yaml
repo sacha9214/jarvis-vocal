@@ -41,15 +41,23 @@ claude:                     # moteur Claude : le binaire officiel `claude`, conn
   first_token_timeout_s: 30
 
 tts:
-  backend: piper
-  voice: fr_FR-siwis-medium # ou fr_FR-tom-medium (voix masculine, synthèse 2× plus lente)
-  length_scale: 1.0         # 0.9 = parle 10 % plus vite
+  backend: auto             # auto : voix naturelle Pocket TTS, Piper si la machine est trop lente | pocket | piper
+  voice: fantine            # Pocket TTS : fantine (la plus fiable), cosette ; marius, jean (masculines, instables sur les phrases courtes) ; ou un .wav
+  temperature: 0.5          # Pocket TTS : plus bas = plus stable, plus haut = plus expressif
+  piper_voice: fr_FR-siwis-medium  # voix de secours : fr_FR-siwis-medium, fr_FR-tom-medium
+  length_scale: 1.0         # Piper : 0.9 = parle 10 % plus vite
 
 tools:                      # actions sur le PC
   enabled: true
   always_allow: []          # actions N2 autorisées sans confirmation (rempli quand tu réponds « toujours »)
   disabled: []              # actions interdites, ex. [power, close_app]
   confirm_timeout_s: 6      # temps pour répondre « oui » / « non »
+
+screen:                     # analyse de l'écran par le modèle de vision local (rien ne quitte la machine)
+  enabled: true
+  interval_s: 20            # au plus une analyse toutes les 20 s, seulement si l'écran a changé
+  max_width: 1024           # largeur de la capture : plus petit = plus rapide
+  model: ""                 # vide = le modèle Ollama principal (qwen3.5 gère les images)
 
 ui:
   window: app               # app (fenêtre Jarvis) | browser | none

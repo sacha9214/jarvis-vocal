@@ -66,10 +66,20 @@ class ToolsConfig:
 
 
 @dataclass
+class ScreenConfig:
+    enabled: bool = True           # analyse de l'écran en continu, par le modèle de vision local
+    interval_s: float = 20.0       # une analyse au plus toutes les N secondes, et seulement si l'écran a changé
+    max_width: int = 1024          # largeur de la capture envoyée au modèle (plus petit = plus rapide)
+    model: str = ""                # vide = le modèle Ollama principal (il doit gérer les images)
+
+
+@dataclass
 class TtsConfig:
-    backend: str = "piper"
-    voice: str = "fr_FR-siwis-medium"
-    length_scale: float = 1.0      # < 1 : parle plus vite
+    backend: str = "auto"          # auto (Pocket TTS, Piper si la machine est trop lente) | pocket | piper
+    voice: str = "fantine"         # Pocket TTS : fantine (la plus fiable), cosette, marius, jean… ou un .wav
+    temperature: float = 0.5       # Pocket TTS : plus bas = plus stable, plus haut = plus expressif
+    piper_voice: str = "fr_FR-siwis-medium"
+    length_scale: float = 1.0      # Piper : < 1 parle plus vite
 
 
 @dataclass
@@ -94,6 +104,7 @@ class Config:
     llm: LlmConfig = field(default_factory=LlmConfig)
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
+    screen: ScreenConfig = field(default_factory=ScreenConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     ui: UiConfig = field(default_factory=UiConfig)

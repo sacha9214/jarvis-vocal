@@ -106,6 +106,12 @@ class Controller:
             self._publish_engine()
         elif key == "claude.fallback_to_local":
             llm.fallback = LOCAL if value else None
+        elif key == "tts.voice":
+            setter = getattr(parts.tts, "set_voice", None)
+            if setter:
+                setter(str(value))
+        elif key.startswith("screen.") and parts.screen is not None:
+            parts.screen.refresh()
         elif key == "tts.length_scale":
             setter = getattr(parts.tts, "set_length_scale", None)
             if setter:

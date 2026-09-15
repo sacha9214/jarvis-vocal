@@ -28,6 +28,15 @@ class Field:
         return data
 
 
+VOICE_OPTIONS = (
+    ("fantine", "Fantine · féminine, la plus fiable (recommandée)"),
+    ("cosette", "Cosette · féminine, parfois imprécise"),
+    ("marius", "Marius · masculine, instable sur les phrases courtes"),
+    ("jean", "Jean · masculine grave, instable sur les phrases courtes"),
+    ("javert", "Javert · masculine, instable sur les phrases courtes"),
+    ("alba", "Alba · médium, expérimentale"),
+)
+
 SECTIONS: list[tuple[str, str, str, list[Field]]] = [
     ("general", "Général", "Qui tu es et avec quel moteur Jarvis réfléchit.", [
         Field("user_name", "Ton prénom", "text", help="Jarvis s'adresse à toi par ce prénom."),
@@ -54,13 +63,28 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
         Field("stt.model", "Modèle de transcription", "text", live=False,
               help="Ex. mlx-community/whisper-large-v3-turbo-q4 (Mac), large-v3-turbo ou small (Windows)."),
     ]),
+    ("screen", "Écran", "Jarvis observe ce que tu fais pour mieux t'aider. Les captures restent en mémoire, "
+     "sur ta machine, et ne sont décrites que par le modèle local.", [
+        Field("screen.enabled", "Analyse de l'écran en continu", "toggle",
+              help="Désactive-la avant d'afficher quelque chose de confidentiel."),
+        Field("screen.interval_s", "Fréquence d'analyse", "slider", min=5, max=120, step=5, unit="s",
+              help="Seulement si l'écran a changé, et jamais pendant une conversation."),
+        Field("screen.max_width", "Précision de la capture", "slider", min=640, max=1600, step=64, unit="px",
+              help="Plus large : texte mieux lu, analyse plus lente."),
+    ]),
     ("voice", "Voix", "Comment Jarvis te parle.", [
-        Field("tts.voice", "Voix", "select", live=False, options=(
-            ("fr_FR-siwis-medium", "Siwis · féminine, la plus rapide"),
+        Field("tts.backend", "Moteur de voix", "select", live=False, options=(
+            ("auto", "Automatique · naturelle, Piper si la machine est lente"),
+            ("pocket", "Pocket TTS · naturelle"),
+            ("piper", "Piper · la plus légère"))),
+        Field("tts.voice", "Voix naturelle", "select", options=VOICE_OPTIONS,
+              help="Change instantanément, sans redémarrer."),
+        Field("tts.piper_voice", "Voix légère (Piper)", "select", live=False, options=(
+            ("fr_FR-siwis-medium", "Siwis · féminine"),
             ("fr_FR-tom-medium", "Tom · masculine"),
             ("fr_FR-upmc-medium", "UPMC · alternative"))),
-        Field("tts.length_scale", "Débit", "slider", min=0.7, max=1.3, step=0.05,
-              help="En dessous de 1, Jarvis parle plus vite."),
+        Field("tts.length_scale", "Débit de la voix Piper", "slider", min=0.7, max=1.3, step=0.05,
+              help="En dessous de 1, Piper parle plus vite."),
     ]),
     ("engines", "Moteurs", "Réglages fins des modèles.", [
         Field("llm.model", "Modèle local (Ollama)", "text",

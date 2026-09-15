@@ -37,6 +37,9 @@ def fake_apps(monkeypatch):
     ("Verrouille l'ordinateur", "lock_screen", {}),
     ("Éteins l'ordinateur", "power", {"action": "shutdown"}),
     ("Annule l'extinction", "cancel_power", {}),
+    ("Qu'est-ce que tu vois ?", "describe_screen", {}),
+    ("C'est quoi cette erreur ?", "describe_screen", {"question": "c est quoi cette erreur"}),
+    ("Explique-moi ce code", "describe_screen", {"question": "explique moi ce code"}),
 ])
 def test_commands(text, tool, arguments):
     assert commands.parse(text) == commands.Command(tool, arguments)

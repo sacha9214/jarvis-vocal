@@ -2,7 +2,8 @@
 
 Assistant vocal en français qui tourne **sur ta machine**, sous **macOS et Windows**.
 Tu dis « Hey Jarvis », tu parles normalement, il répond d'une **voix naturelle**, **agit sur ton
-ordinateur** (applications, musique, volume, minuteurs…), **voit ce que tu fais à l'écran** et
+ordinateur** (applications, musique, volume, minuteurs…), **pilote les vidéos et les pages de ton
+navigateur**, **voit ce que tu fais à l'écran** et
 s'affiche dans une **interface holographique** où tu règles tout en direct. Il réfléchit en local
 ou avec **ton abonnement Claude**.
 
@@ -49,6 +50,9 @@ sans ralentir Whisper ni le LLM sur le GPU.
 | « monte le son », « volume à trente », « coupe le son » | volume | N1 |
 | « mets pause », « chanson suivante » | lecture (Spotify, Musique ; lecteur actif sous Windows) | N1 |
 | « mets un minuteur de 5 minutes pour les pâtes » | minuteur annoncé à voix haute | N1 |
+| « baisse le volume de la vidéo », « avance de 30 secondes » | vidéo du navigateur | N1 |
+| « lance la deuxième vidéo », « clique sur Paramètres » | clic dans la page | N1 |
+| « cherche des tutos Python sur YouTube », « ferme l'onglet » | recherche, onglets | N1 / N2 |
 | « qu'est-ce que tu vois ? », « c'est quoi cette erreur ? » | regarde l'écran et répond | N1 |
 | « donne-moi l'état de l'ordinateur » | batterie, processeur, mémoire | N1 |
 | « ferme Discord », « verrouille l'écran » | fermeture, verrouillage | N2 |
@@ -61,6 +65,26 @@ sans ralentir Whisper ni le LLM sur le GPU.
   **mêmes outils**, avec les mêmes confirmations.
 - Avec Claude, les outils passent par un **serveur MCP local** : Claude n'a accès à aucun de
   ses outils intégrés (ni terminal, ni fichiers), seulement aux actions de Jarvis.
+
+## Navigateur
+
+Jarvis pilote la vidéo et la page de ton navigateur : volume de la vidéo (indépendant du volume
+de l'ordinateur), pause, avance, vitesse, vidéo suivante, choix d'une vidéo, clic sur un bouton ou un
+lien, défilement, onglets, recherche YouTube ou Google. Pour une demande libre (« mets la vidéo de
+cuisine »), le modèle **lit d'abord la page**, puis clique.
+
+| Navigateur | Comment |
+|---|---|
+| Chrome, Edge, Brave, Opera, Vivaldi, Arc | extension Jarvis : `uv run jarvis extension`, puis « Charger l'extension non empaquetée » |
+| Firefox | la même extension, en module temporaire (à recharger après chaque redémarrage de Firefox) |
+| Safari (macOS) | sans extension, par AppleScript : activer « Autoriser JavaScript depuis les Apple Events » |
+
+- `jarvis extension` affiche la marche à suivre et ouvre le dossier à charger.
+- Jarvis agit sur le **dernier navigateur utilisé** : cliquer dans sa fenêtre pour lui parler ne
+  change pas la cible.
+- **Sécurité** : le pont n'écoute que 127.0.0.1, n'accepte que des extensions (une page web ne peut
+  pas s'y connecter) et exige un jeton propre à ta machine. Jarvis **refuse de cliquer** sur acheter,
+  payer, supprimer, envoyer, publier, s'abonner… ; fermer un onglet ou taper du texte demande confirmation.
 
 ## Analyse de l'écran
 
@@ -166,6 +190,7 @@ modèles d'écoute. Les modèles d'écoute et la voix Piper sont vérifiés par 
 |---|---|
 | `uv run jarvis` | lance l'assistant et son interface (`--ui browser` ou `--ui none` au besoin) |
 | `uv run jarvis hud` | aperçu de l'interface avec des données simulées |
+| `uv run jarvis extension` | prépare l'extension navigateur et explique comment l'ajouter |
 | `uv run jarvis setup` | télécharge les modèles adaptés à ta machine |
 | `uv run jarvis doctor` | vérifie Ollama, Claude Code, les voix, le micro et la sortie audio |
 | `uv run jarvis bench` | mesure la latence de chaque étage (`--backend claude` pour Claude) |
@@ -188,7 +213,8 @@ src/jarvis/
   tts/        Pocket TTS (voix naturelle), Piper (secours)
   llm/        Ollama, Claude Code, routeur local/Claude avec repli
   tools/      registre des actions, permissions N1/N2/N3, serveur MCP
-  system/     applications, volume, lecture, dossiers, alimentation (macOS + Windows)
+  browser/    extension navigateur, pont WebSocket local, Safari par AppleScript
+  system/     applications, fenêtre active, volume, lecture, dossiers, alimentation (macOS + Windows)
   vision/     analyse de l'écran par le modèle local
   ui/         interface : page, API des réglages, fenêtre native
   commands.py commandes vocales reconnues sans LLM
@@ -205,6 +231,9 @@ src/jarvis/
   ce qu'il vient de dire et la coupure passe par « Hey Jarvis ».
 - **Windows** : validé par la CI (installation, lint, tests) mais pas encore sur une vraie
   machine avec micro. La voix naturelle y dépend de la puissance du processeur (Piper sinon).
+- **Navigateur** : les actions sont testées sur une vraie page (lecture, volume, clics, refus des
+  actions sensibles) et le pont par des tests automatiques ; l'extension n'a pas encore été chargée
+  dans chaque navigateur. Les pages internes (`chrome://`, boutique d'extensions) restent inaccessibles.
 - **Voix de test** : les mesures de compréhension utilisent des voix de synthèse, plus dures à
   transcrire qu'une vraie voix.
 

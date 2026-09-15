@@ -50,6 +50,14 @@ def open_folder(name: str) -> str:
 @tool("media", "Contrôle la musique en cours : play, pause, next (suivant) ou previous (précédent).",
       {"action": {"type": "string", "enum": list(media.ACTIONS)}}, ("action",))
 def media_control(action: str) -> str:
+    # Dans le navigateur, « mets pause » vise la vidéo qu'on regarde, pas Spotify.
+    if BROWSER is not None and BROWSER.in_browser():
+        try:
+            result = BROWSER.call("media", {"action": action})
+            if result.get("found"):
+                return result.get("error") or _media_sentence(action, None, result)
+        except Exception:  # noqa: BLE001 - extension absente : on retombe sur le lecteur système
+            pass
     return media.control(action)
 
 
@@ -112,3 +120,138 @@ def describe_screen(question: str = "") -> str:
     if SCREEN is None or not SCREEN.cfg.enabled:
         return "L'analyse d'écran est désactivée dans les réglages."
     return SCREEN.look(question) or "Je n'arrive pas à voir l'écran pour le moment."
+
+
+# -- navigateur (extension Jarvis, ou Safari sur macOS)
+
+BROWSER = None   # BrowserController branché au démarrage (jarvis.app)
+RISKY = (r"\b(?:acheter|achat|payer|paiement|commander|valider la commande|supprimer|effacer|envoyer|publier"
+         r"|confirmer|s abonner|abonnement|checkout|buy|pay|delete|send|subscribe|order)\b")
+MEDIA_ACTIONS = ["play", "pause", "toggle", "volume", "volume_up", "volume_down", "mute", "unmute",
+                 "forward", "back", "speed", "next"]
+
+
+def _browser():
+    if BROWSER is None:
+        raise RuntimeError("le pilotage du navigateur est désactivé")
+    return BROWSER
+
+
+def _media_sentence(action: str, value: float | None, result: dict) -> str:
+    seconds = int(value or 10)
+    return {
+        "play": "Lecture.", "pause": "Pause.", "toggle": "C'est fait.",
+        "volume": f"Volume de la vidéo à {result.get('volume')} pour cent.",
+        "volume_up": f"Volume de la vidéo à {result.get('volume')} pour cent.",
+        "volume_down": f"Volume de la vidéo à {result.get('volume')} pour cent.",
+        "mute": "Vidéo en sourdine.", "unmute": "Son de la vidéo rétabli.",
+        "forward": f"J'avance de {seconds} secondes.", "back": f"Je recule de {seconds} secondes.",
+        "speed": f"Vitesse {result.get('speed')}.", "next": "Vidéo suivante.",
+    }.get(action, "C'est fait.")
+
+
+@tool("browser_media", "Contrôle la vidéo ou la musique de l'onglet actif du navigateur (YouTube, Netflix…) : "
+      "play, pause, volume (value de 0 à 100), volume_up, volume_down, mute, unmute, forward ou back (value en "
+      "secondes), speed (value, ex. 1.5), next.",
+      {"action": {"type": "string", "enum": MEDIA_ACTIONS}, "value": {"type": "number"}}, ("action",),
+      context="browser")
+def browser_media(action: str, value: float | None = None) -> str:
+    result = _browser().call("media", {"action": action, "value": value})
+    if not result.get("found"):
+        return "Je ne trouve pas de vidéo dans l'onglet actif."
+    return result.get("error") or _media_sentence(action, value, result)
+
+
+@tool("browser_read", "Lit l'onglet actif du navigateur : titre, adresse, texte et liste numérotée des vidéos, "
+      "liens et boutons. À utiliser avant browser_open pour choisir quoi ouvrir, ou pour résumer la page.",
+      context="browser", speaks=False)
+def browser_read() -> str:
+    page = _browser().call("page", {"max_chars": 3500, "max_items": 30})
+    lines = [f"Page : {page.get('title')} ({page.get('url')})"]
+    if items := page.get("items"):
+        lines.append("Éléments cliquables :")
+        lines += [f"{item['index']}. [{item['kind']}] {item['text']}" for item in items]
+    if page.get("selection"):
+        lines.append(f"Texte sélectionné : {page['selection']}")
+    lines.append("Texte de la page :\n" + (page.get("text") or ""))
+    return "\n".join(lines)
+
+
+@tool("browser_open", "Ouvre ou clique un élément de la page active : index (numéro donné par browser_read), "
+      "text (texte du lien ou du bouton), ou video (n-ième vidéo de la page, ex. 2 pour la deuxième).",
+      {"index": {"type": "integer"}, "text": {"type": "string"}, "video": {"type": "integer"}}, context="browser")
+def browser_open(index: int | None = None, text: str = "", video: int | None = None) -> str:
+    browser = _browser()
+    if video:
+        items = browser.call("page", {"max_chars": 0, "max_items": 80}).get("items") or []
+        videos = [item for item in items if item["kind"] == "vidéo"]
+        if len(videos) < video:
+            return "Je ne trouve pas autant de vidéos sur cette page."
+        index = videos[video - 1]["index"]
+    elif index:
+        browser.call("page", {"max_chars": 0, "max_items": 80})     # numérotation à jour
+    if not index and not text:
+        return "Dis-moi quoi ouvrir sur la page."
+    result = browser.call("click", {"index": index, "text": text, "forbid": RISKY})
+    if not result.get("clicked"):
+        return result.get("error") or "Je n'ai pas pu cliquer."
+    label = (result.get("text") or "l'élément")[:90]
+    return f"J'ouvre {label}." if result.get("kind") == "lien" else f"Je clique sur {label}."
+
+
+@tool("browser_scroll", "Fait défiler la page active : down, up, top ou bottom.",
+      {"direction": {"type": "string", "enum": ["down", "up", "top", "bottom"]}}, ("direction",), context="browser")
+def browser_scroll(direction: str) -> str:
+    _browser().call("scroll", {"direction": direction})
+    return {"down": "Je descends.", "up": "Je remonte.", "top": "En haut de la page.",
+            "bottom": "En bas de la page."}.get(direction, "C'est fait.")
+
+
+@tool("browser_navigate", "Dans l'onglet actif : direction back (page précédente), forward ou reload, ou url à ouvrir.",
+      {"direction": {"type": "string", "enum": ["back", "forward", "reload"]}, "url": {"type": "string"}},
+      context="browser")
+def browser_navigate(direction: str = "", url: str = "") -> str:
+    if url:
+        target = web.resolve_site(url) or (url if url.startswith("http") else web.search_url(url))
+        _browser().call("navigate", {"url": target})
+        return f"J'ouvre {url}."
+    _browser().call("navigate", {"direction": direction or "reload"})
+    return {"back": "Page précédente.", "forward": "Page suivante."}.get(direction, "Je recharge la page.")
+
+
+@tool("browser_search", "Lance une recherche dans l'onglet actif : sur YouTube (site youtube) ou sur Google.",
+      {"query": {"type": "string"}, "site": {"type": "string", "enum": ["youtube", "google"]}}, ("query",),
+      context="browser")
+def browser_search(query: str, site: str = "google") -> str:
+    from urllib.parse import quote_plus
+    url = (f"https://www.youtube.com/results?search_query={quote_plus(query)}" if site == "youtube"
+           else web.search_url(query))
+    _browser().call("navigate", {"url": url})
+    return f"Je cherche {query} sur YouTube." if site == "youtube" else f"Je cherche {query}."
+
+
+@tool("browser_tabs", "Onglets du navigateur : list (les lister), switch (index, ou onglet suivant sans index), "
+      "new (url facultative).",
+      {"action": {"type": "string", "enum": ["list", "switch", "new"]}, "index": {"type": "integer"},
+       "url": {"type": "string"}}, ("action",), context="browser")
+def browser_tabs(action: str, index: int | None = None, url: str = "") -> str:
+    result = _browser().call("tabs", {"action": action, "index": index, "url": url})
+    if action == "list":
+        tabs = result.get("tabs") or []
+        return "Onglets ouverts : " + " ; ".join(f"{t['index']}, {t['title']}" for t in tabs[:12]) + "."
+    return f"Onglet : {result.get('title')}." if action == "switch" else "Nouvel onglet ouvert."
+
+
+@tool("browser_close_tab", "Ferme l'onglet actif du navigateur.", level=N2,
+      confirm=lambda a: "Je ferme cet onglet ?", context="browser")
+def browser_close_tab() -> str:
+    result = _browser().call("tabs", {"action": "close"})
+    return f"J'ai fermé {result.get('title') or 'l onglet'}."
+
+
+@tool("browser_type", "Tape du texte dans le champ sélectionné de la page, et valide si submit est vrai.",
+      {"text": {"type": "string"}, "submit": {"type": "boolean"}}, ("text",), level=N2,
+      confirm=lambda a: f"Je tape « {str(a.get('text', ''))[:60]} » dans la page ?", context="browser")
+def browser_type(text: str, submit: bool = False) -> str:
+    result = _browser().call("type", {"text": text, "submit": submit})
+    return "C'est tapé." if result.get("typed") else result.get("error") or "Je n'ai pas pu taper."

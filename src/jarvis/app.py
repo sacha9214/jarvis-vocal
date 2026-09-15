@@ -11,12 +11,16 @@ from . import assets
 from . import config as config_module
 from .audio.vad import SileroVad
 from .audio.wakeword import WakeWord
+from .browser import install as browser_install
+from .browser.bridge import start_bridge
+from .browser.controller import BrowserController
 from .config import Config
 from .events import EventBus
 from .llm import load_llm
 from .llm.router import CLAUDE, Router
 from .server import LocalServer, start_server
 from .stt import SpeechToText, load_stt
+from .system.foreground import ForegroundTracker
 from .tools import ToolExecutor, builtin
 from .tts import TextToSpeech
 from .vision.screen import ScreenWatcher, ollama_describer
@@ -70,6 +74,8 @@ class Components:
     executor: ToolExecutor
     server: LocalServer | None = None
     screen: ScreenWatcher | None = None
+    foreground: ForegroundTracker | None = None
+    browser: BrowserController | None = None
 
 
 def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, executor: ToolExecutor | None = None,
@@ -89,6 +95,13 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
     # Toujours créé (activable en direct depuis l'interface) ; il ne capture que si screen.enabled.
     screen = ScreenWatcher(cfg.screen, ollama_describer(cfg))
     builtin.SCREEN = screen
+    foreground = ForegroundTracker().start()
+    browser = None
+    if cfg.browser.enabled:
+        bridge = start_bridge(browser_install.token(), cfg.browser.port,
+                              on_change=lambda names: bus.publish("browsers", names=names))
+        browser = BrowserController(bridge, foreground)
+    builtin.BROWSER = browser
 
     def timed[T](label: str, build: Callable[[], T]) -> T:
         start = time.perf_counter()
@@ -102,11 +115,6 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
         llm.warmup(system_prompt)
         return llm
 
-    def warm_tts() -> TextToSpeech:
-        tts = build_tts(cfg)
-        tts.warmup()
-        return tts
-
     def warm_stt() -> SpeechToText:
         from .system.apps import vocabulary
         stt = load_stt(cfg.stt)
@@ -116,8 +124,9 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
 
     with ThreadPoolExecutor(max_workers=3, thread_name_prefix="load") as pool:
         llm_future = pool.submit(timed, f"Moteur {llm.active} ({llm.model})", warm_llm)
-        tts_future = pool.submit(timed, "Voix", warm_tts)
+        tts_future = pool.submit(timed, "Voix", lambda: build_tts(cfg))
         ears_future = pool.submit(timed, "Mot d'activation", lambda: (build_wakeword(cfg), build_vad(cfg)))
         stt = timed("Transcription", warm_stt)
         wakeword, vad = ears_future.result()
-        return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server, screen)
+        return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server, screen,
+                          foreground, browser)

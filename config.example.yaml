@@ -59,6 +59,10 @@ screen:                     # analyse de l'écran par le modèle de vision local
   max_width: 1024           # largeur de la capture : plus petit = plus rapide
   model: ""                 # vide = le modèle Ollama principal (qwen3.5 gère les images)
 
+browser:                    # pilotage du navigateur (volume des vidéos, clic, onglets…)
+  enabled: true
+  port: 47831               # port local du pont avec l'extension (`jarvis extension` pour l'installer)
+
 ui:
   window: app               # app (fenêtre Jarvis) | browser | none
   port: 0                   # 0 = port libre choisi au démarrage

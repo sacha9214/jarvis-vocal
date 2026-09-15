@@ -44,6 +44,7 @@ LOG = logging.getLogger("jarvis")
 _ECHO_GUARD_S = 0.35   # après une réponse, ignore la réverbération de sa propre voix
 _CONTINUATION_S = 1.5  # attente de la suite d'une phrase inachevée (« Ouvre… euh… »)
 _LEVEL_EVERY = 3       # trames entre deux niveaux audio publiés (~10 par seconde)
+_MAX_TOOL_ROUNDS = 3   # lire la page, puis agir, puis répondre : au-delà, le petit modèle tourne en rond
 
 
 @dataclass
@@ -258,27 +259,46 @@ class Assistant:
             timer.mark("first_chunk")
             speaker.say(piece)
 
-        tools = self.parts.executor.schemas() if self.cfg.tools.enabled else None
+        executor = self.parts.executor
+        tools = executor.schemas(self._context()) if self.cfg.tools.enabled else None
+        conversation = list(messages)
         try:
-            for event in self.parts.llm.stream(messages, cancel=cancel, tools=tools):
-                if isinstance(event, Delta):
-                    timer.mark("llm_first_token")
-                    parts.append(event.text)
-                    for piece in chunker.feed(event.text):
-                        say(piece)
-                elif isinstance(event, ToolCall):
-                    for piece in chunker.flush():
-                        say(piece)
-                    result = self.parts.executor.run(event.name, event.arguments)
+            for _ in range(_MAX_TOOL_ROUNDS):
+                data_calls: list[ToolCall] = []
+                written: list[str] = []
+                for event in self.parts.llm.stream(conversation, cancel=cancel, tools=tools):
+                    if isinstance(event, Delta):
+                        timer.mark("llm_first_token")
+                        parts.append(event.text)
+                        written.append(event.text)
+                        for piece in chunker.feed(event.text):
+                            say(piece)
+                    elif isinstance(event, ToolCall):
+                        for piece in chunker.flush():
+                            say(piece)
+                        if executor.speaks(event.name):
+                            result = executor.run(event.name, event.arguments)
+                            timer.mark("tool")
+                            parts.append((" " if parts else "") + result)
+                            say(result)
+                        else:
+                            data_calls.append(event)
+                    elif isinstance(event, Notice):
+                        speaker.say(event.text)
+                    elif isinstance(event, Done):
+                        LOG.debug("LLM : prompt %d tokens, %d tokens produits", event.prompt_tokens,
+                                  event.output_tokens)
+                for piece in chunker.flush():
+                    say(piece)
+                if not data_calls or cancel.is_set():
+                    break
+                # Outils de données (page, application, code) : le modèle lit le résultat, puis répond ou agit.
+                conversation.append({"role": "assistant", "content": "".join(written), "tool_calls": [
+                    {"function": {"name": call.name, "arguments": call.arguments}} for call in data_calls]})
+                for call in data_calls:
+                    conversation.append({"role": "tool", "tool_name": call.name,
+                                         "content": executor.run(call.name, call.arguments)})
                     timer.mark("tool")
-                    parts.append((" " if parts else "") + result)
-                    say(result)
-                elif isinstance(event, Notice):
-                    speaker.say(event.text)
-                elif isinstance(event, Done):
-                    LOG.debug("LLM : prompt %d tokens, %d tokens produits", event.prompt_tokens, event.output_tokens)
-            for piece in chunker.flush():
-                say(piece)
         except Exception as exc:
             LOG.error("LLM en échec : %s", exc)
             self.bus.publish("error", text=str(exc))
@@ -378,6 +398,10 @@ class Assistant:
 
     def _publish_engine(self) -> None:
         self.bus.publish("engine", active=self.parts.llm.active, model=self.parts.llm.model)
+
+    def _context(self) -> str:
+        """Contexte d'outils : navigateur, éditeur de code, ou aucun (application utilisée avant Jarvis)."""
+        return self.parts.foreground.context() if self.parts.foreground is not None else ""
 
     def _on_tool_result(self, result: ToolResult) -> None:
         self.bus.publish("tool", name=result.name, arguments=result.arguments, level=result.level,

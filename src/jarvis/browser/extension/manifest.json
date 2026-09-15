@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Jarvis",
+  "version": "1.0.0",
+  "description": "Permet à Jarvis, ton assistant vocal local, de piloter les vidéos et les pages de ce navigateur.",
+  "minimum_chrome_version": "120",
+  "permissions": ["scripting", "tabs", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Jarvis" }
+}

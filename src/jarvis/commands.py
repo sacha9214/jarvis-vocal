@@ -214,7 +214,94 @@ def _screen(plain: str, soft: str) -> Command | None:
     return None
 
 
-_RULES = (_power, _volume, _media, _timer, _search, _screen, _close, _folder, _open)
+_ORDINALS = {
+    "premier": 1, "premiere": 1, "1er": 1, "1re": 1, "1ere": 1, "deuxieme": 2, "second": 2, "seconde": 2, "2e": 2,
+    "2eme": 2, "troisieme": 3, "3e": 3, "3eme": 3, "quatrieme": 4, "4e": 4, "4eme": 4, "cinquieme": 5, "5e": 5,
+    "5eme": 5, "sixieme": 6, "septieme": 7, "huitieme": 8, "neuvieme": 9, "dixieme": 10,
+}
+_VIDEO = r"(?:la video|cette video|le film|youtube)"
+
+
+def _media_command(action: str, value: float | None = None) -> Command:
+    arguments: dict[str, Any] = {"action": action}
+    if value is not None:
+        arguments["value"] = value
+    return Command("browser_media", arguments)
+
+
+def _browser_media(plain: str) -> Command | None:
+    volume = r"(?:le son|le volume)"
+    if match := re.fullmatch(rf"(?P<verb>baisse|diminue|monte|augmente) (?:un peu )?{volume} (?:de |d )?{_VIDEO}"
+                             r"(?: de (?P<n>.+?)(?: pour cent)?)?", plain):
+        step = parse_number(match["n"]) if match["n"] else 10
+        if step is not None:
+            return _media_command("volume_up" if match["verb"] in ("monte", "augmente") else "volume_down", step)
+    if match := re.fullmatch(rf"(?:mets|met|regle) {volume} (?:de |d )?{_VIDEO} a (?P<n>.+?)(?: pour cent)?", plain):
+        if (level := parse_number(match["n"])) is not None:
+            return _media_command("volume", level)
+    if re.fullmatch(rf"coupe (?:le son (?:de |d )?)?{_VIDEO}|mets {_VIDEO} en sourdine", plain):
+        return _media_command("mute")
+    if re.fullmatch(rf"remets le son (?:de |d )?{_VIDEO}", plain):
+        return _media_command("unmute")
+    if re.fullmatch(rf"(?:mets|met) {_VIDEO} en pause|pause {_VIDEO}|(?:stoppe|arrete) {_VIDEO}", plain):
+        return _media_command("pause")
+    if re.fullmatch(rf"(?:relance|reprends|remets|lance|joue) {_VIDEO}", plain):
+        return _media_command("play")
+    if match := re.fullmatch(r"(?P<dir>avance|recule)(?: la video)? (?:de )?(?P<n>.+?) (?P<unit>secondes?|minutes?)",
+                             plain):
+        if amount := parse_number(match["n"]):
+            seconds = amount * (60 if match["unit"].startswith("minute") else 1)
+            return _media_command("forward" if match["dir"] == "avance" else "back", seconds)
+    if re.fullmatch(r"video suivante|passe a la video suivante|mets la video suivante|video d apres", plain):
+        return _media_command("next")
+    if match := re.fullmatch(r"(?:mets|passe) (?:la video )?(?:en )?vitesse (?:x )?(?P<n>[0-9]+(?: [0-9]+)?|normale)",
+                             plain):
+        return _media_command("speed", 1.0 if match["n"] == "normale" else float(match["n"].replace(" ", ".")))
+    return None
+
+
+def _browser(plain: str, soft: str) -> Command | None:
+    if command := _browser_media(plain):
+        return command
+    if match := re.fullmatch(r"(?:lance|mets|ouvre|joue|clique sur|choisis|regarde) (?:la |le )?(?P<o>\w+) "
+                             r"(?:video|resultat)", plain):
+        if rank := _ORDINALS.get(match["o"]):
+            return Command("browser_open", {"video": rank})
+    if match := re.fullmatch(r"(?:lance|mets|ouvre|joue) la video (?:numero )?(?P<n>\w+)", plain):
+        if rank := _ORDINALS.get(match["n"]) or parse_number(match["n"]):
+            return Command("browser_open", {"video": rank})
+    if match := re.fullmatch(r"clique sur (?P<t>.+)", plain):
+        return Command("browser_open", {"text": _span(soft, match, "t")})
+    if match := (re.fullmatch(r"(?:cherche|recherche|trouve)(?: moi)? (?P<q>.+?) sur youtube", plain)
+                 or re.fullmatch(r"(?:mets|lance|trouve)(?: moi)? (?:une |des )?videos? (?:de |d |sur |avec )(?P<q>.+)",
+                                 plain)):
+        return Command("browser_search", {"query": _span(soft, match, "q"), "site": "youtube"})
+    scrolls = {
+        "down": r"(?:descends|fais defiler|scrolle|defile)(?: la page)?(?: vers le bas)?",
+        "up": r"(?:remonte|monte) la page|remonte|fais defiler vers le haut",
+        "top": r"(?:va |remonte )?tout en haut(?: de la page)?",
+        "bottom": r"(?:va |descends )?tout en bas(?: de la page)?",
+    }
+    for direction, pattern in scrolls.items():
+        if re.fullmatch(pattern, plain):
+            return Command("browser_scroll", {"direction": direction})
+    if re.fullmatch(r"page precedente|reviens en arriere|retour en arriere|retourne a la page precedente", plain):
+        return Command("browser_navigate", {"direction": "back"})
+    if re.fullmatch(r"(?:recharge|actualise|rafraichis) la page", plain):
+        return Command("browser_navigate", {"direction": "reload"})
+    if re.fullmatch(r"ferme (?:l onglet|cet onglet)", plain):
+        return Command("browser_close_tab")
+    if re.fullmatch(r"onglet suivant|change d onglet|passe a l onglet suivant", plain):
+        return Command("browser_tabs", {"action": "switch"})
+    if match := re.fullmatch(r"(?:va sur|passe sur|montre) l onglet (?P<n>\w+)", plain):
+        if rank := _ORDINALS.get(match["n"]) or parse_number(match["n"]):
+            return Command("browser_tabs", {"action": "switch", "index": rank})
+    if re.fullmatch(r"(?:ouvre un )?nouvel onglet", plain):
+        return Command("browser_tabs", {"action": "new"})
+    return None
+
+
+_RULES = (_power, _browser, _volume, _media, _timer, _search, _screen, _close, _folder, _open)
 
 
 def parse(text: str) -> Command | None:

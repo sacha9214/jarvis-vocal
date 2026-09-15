@@ -17,11 +17,14 @@ dependencies = [
     "piper-tts>=1.8.0",
     "pocket-tts>=3.1.0",
     "psutil>=7.2.2",
+    "pyobjc-framework-applicationservices>=12.2.2 ; sys_platform == 'darwin'",
     "pyobjc-framework-quartz>=12.2.2 ; sys_platform == 'darwin'",
     "pywebview>=6.2.1",
     "pyyaml>=6.0.3",
     "sounddevice>=0.5.6",
     "soxr>=1.1.0",
+    "uiautomation>=2.0.29 ; sys_platform == 'win32'",
+    "websockets>=17.1",
 ]
 
 [project.optional-dependencies]

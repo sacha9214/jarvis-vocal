@@ -74,6 +74,7 @@ class Router:
             backend.check()
         except RuntimeError as exc:
             LOG.warning("Bascule vers %s impossible : %s", label, exc)
+            self.last_error = str(exc)      # affiché tel quel par l'interface
             return f"Je ne peux pas passer sur {label}, le détail est dans le terminal."
         self.active = target
         if self._system:   # chauffe en arrière-plan : la prochaine question ne paie pas le chargement

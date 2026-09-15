@@ -138,7 +138,9 @@ class Controller:
         elif name == "switch":
             message = self.parts.llm.switch(str(value))
             self._publish_engine()
-            return {"ok": self.parts.llm.active == value, "message": message}
+            ok = self.parts.llm.active == value
+            detail = None if ok else getattr(self.parts.llm, "last_error", None)
+            return {"ok": ok, "message": detail or message}
         else:
             raise ValueError(f"Action inconnue : {name}")
         return {"ok": True}

@@ -557,6 +557,11 @@
         break;
       case "levels": store.mic = event.mic; store.out = event.out; break;
       case "engine": setEngine(event.active, event.model); break;
+      case "browsers": {
+        const names = event.names || [];
+        logEntry("announce", `<span class="k">NAVIGATEUR</span>${names.length ? `${esc(names.join(", "))} relié à Jarvis` : "Aucun navigateur relié"}`);
+        break;
+      }
       case "user":
         $("#caption-user").textContent = event.text;
         logEntry("user", `<span class="k">TOI</span>${esc(event.text)}`);

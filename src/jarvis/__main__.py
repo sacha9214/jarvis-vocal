@@ -1,4 +1,4 @@
-"""Point d'entrée : `jarvis [run | hud | bench | doctor | setup | devices]`."""
+"""Point d'entrée : `jarvis [run | hud | extension | bench | doctor | setup | devices]`."""
 from __future__ import annotations
 
 import argparse
@@ -91,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--backend", choices=["ollama", "claude"], help="moteur au démarrage")
     run.add_argument("--ui", choices=["app", "browser", "none"], help="affichage de l'interface")
     sub.add_parser("hud", help="aperçu de l'interface avec des données simulées")
+    sub.add_parser("extension", help="prépare l'extension Jarvis pour Chrome, Edge, Brave, Opera, Arc et Firefox")
     bench = sub.add_parser("bench", help="mesure la latence de chaque étage, sans micro")
     bench.add_argument("--backend", choices=["ollama", "claude"], help="moteur à mesurer")
     bench.add_argument("--llm-model", help="modèle Ollama, ex. qwen3.5:2b")
@@ -124,6 +125,9 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "hud":
             return _hud_demo(cfg)
+        if args.command == "extension":
+            from .browser.install import run as install_extension
+            return install_extension(cfg.browser.port)
         if args.command == "bench":
             from .bench import run as run_bench
             return run_bench(cfg, args.repeats)

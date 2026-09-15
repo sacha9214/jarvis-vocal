@@ -40,6 +40,17 @@ def fake_apps(monkeypatch):
     ("Qu'est-ce que tu vois ?", "describe_screen", {}),
     ("C'est quoi cette erreur ?", "describe_screen", {"question": "c est quoi cette erreur"}),
     ("Explique-moi ce code", "describe_screen", {"question": "explique moi ce code"}),
+    ("Baisse le volume de la vidéo", "browser_media", {"action": "volume_down", "value": 10}),
+    ("Mets le volume de la vidéo à vingt", "browser_media", {"action": "volume", "value": 20}),
+    ("Mets la vidéo en pause", "browser_media", {"action": "pause"}),
+    ("Avance de 30 secondes", "browser_media", {"action": "forward", "value": 30}),
+    ("Lance la deuxième vidéo", "browser_open", {"video": 2}),
+    ("Clique sur Paramètres", "browser_open", {"text": "paramètres"}),
+    ("Cherche des tutos Python sur YouTube", "browser_search", {"query": "des tutos python", "site": "youtube"}),
+    ("Mets une vidéo de chats", "browser_search", {"query": "chats", "site": "youtube"}),
+    ("Descends", "browser_scroll", {"direction": "down"}),
+    ("Page précédente", "browser_navigate", {"direction": "back"}),
+    ("Ferme l'onglet", "browser_close_tab", {}),
 ])
 def test_commands(text, tool, arguments):
     assert commands.parse(text) == commands.Command(tool, arguments)

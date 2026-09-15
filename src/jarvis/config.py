@@ -74,6 +74,12 @@ class ScreenConfig:
 
 
 @dataclass
+class BrowserConfig:
+    enabled: bool = True           # pilotage du navigateur : extension Jarvis, ou Safari par AppleScript
+    port: int = 47831              # port local fixe du pont, connu de l'extension installée
+
+
+@dataclass
 class TtsConfig:
     backend: str = "auto"          # auto (Pocket TTS, Piper si la machine est trop lente) | pocket | piper
     voice: str = "fantine"         # Pocket TTS : fantine (la plus fiable), cosette, marius, jean… ou un .wav
@@ -105,6 +111,7 @@ class Config:
     claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     tools: ToolsConfig = field(default_factory=ToolsConfig)
     screen: ScreenConfig = field(default_factory=ScreenConfig)
+    browser: BrowserConfig = field(default_factory=BrowserConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     ui: UiConfig = field(default_factory=UiConfig)

@@ -3,6 +3,10 @@
 N1 : sans confirmation (ouvrir une appli, le volume, un minuteur…).
 N2 : confirmation vocale, mémorisable en répondant « toujours » (fermer une appli, verrouiller).
 N3 : confirmation à chaque fois, jamais mémorisée (éteindre, redémarrer).
+
+Un outil « parlant » renvoie une phrase dite telle quelle ; un outil de données (lire une page,
+une application) renvoie un contenu que le modèle lit avant de répondre. Un contexte (« browser »,
+« code ») réserve un outil aux moments où il sert : un petit modèle choisit mieux parmi moins d'outils.
 """
 from __future__ import annotations
 
@@ -29,6 +33,8 @@ class Tool:
     level: str
     handler: Callable[..., str]
     confirm: Callable[[dict[str, Any]], str] | None = None
+    context: str = ""          # "" : toujours proposé ; sinon seulement dans ce contexte
+    speaks: bool = True        # False : le résultat retourne au modèle au lieu d'être dit
 
     def schema(self) -> dict[str, Any]:
         return {"type": "function",
@@ -42,11 +48,12 @@ REGISTRY: dict[str, Tool] = {}
 
 
 def tool(name: str, description: str, properties: dict[str, Any] | None = None, required: tuple[str, ...] = (),
-         level: str = N1, confirm: Callable[[dict[str, Any]], str] | None = None):
+         level: str = N1, confirm: Callable[[dict[str, Any]], str] | None = None, context: str = "",
+         speaks: bool = True):
     parameters = {"type": "object", "properties": properties or {}, "required": list(required)}
 
     def register(handler: Callable[..., str]) -> Callable[..., str]:
-        REGISTRY[name] = Tool(name, description, parameters, level, handler, confirm)
+        REGISTRY[name] = Tool(name, description, parameters, level, handler, confirm, context, speaks)
         return handler
     return register
 
@@ -75,6 +82,8 @@ def _clean_arguments(tool_: Tool, arguments: dict[str, Any]) -> dict[str, Any]:
         try:
             if kind == "integer":
                 value = int(float(value))
+            elif kind == "number":
+                value = float(value)
             elif kind == "boolean" and isinstance(value, str):
                 value = value.strip().lower() in ("true", "1", "oui", "yes")
             elif kind == "string":
@@ -95,13 +104,19 @@ class ToolExecutor:
         self.on_result = on_result
         self.on_always = on_always
 
-    def tools(self) -> list[Tool]:
+    def tools(self, context: str | None = None) -> list[Tool]:
+        """Outils disponibles ; avec un contexte, seulement les généraux et ceux de ce contexte."""
         if not self.cfg.enabled:
             return []
-        return [t for name, t in REGISTRY.items() if name not in self.cfg.disabled]
+        return [t for name, t in REGISTRY.items()
+                if name not in self.cfg.disabled and (context is None or not t.context or t.context == context)]
 
-    def schemas(self) -> list[dict[str, Any]]:
-        return [t.schema() for t in self.tools()]
+    def schemas(self, context: str | None = None) -> list[dict[str, Any]]:
+        return [t.schema() for t in self.tools(context)]
+
+    def speaks(self, name: str) -> bool:
+        tool_ = REGISTRY.get(name)
+        return tool_ is None or tool_.speaks
 
     def run(self, name: str, arguments: dict[str, Any] | None = None) -> str:
         tool_ = REGISTRY.get(name)
@@ -126,10 +141,10 @@ class ToolExecutor:
                 LOG.warning("Paramètres invalides pour %s %s : %s", name, clean, exc)
                 text = f"Il me manque des précisions pour l'action {name}."
             except Exception as exc:  # noqa: BLE001 - l'échec est dit à voix haute
-                LOG.exception("Outil %s en échec", name)
+                LOG.warning("Outil %s en échec : %s", name, exc)
                 text = f"L'action a échoué : {exc}"
         result = ToolResult(name, clean, tool_.level, text, allowed, (time.perf_counter() - start) * 1000)
-        LOG.info("🛠  %s %s → %s", name, clean, text)
+        LOG.info("🛠  %s %s → %.160s", name, clean, text)
         if self.on_result:
             self.on_result(result)
         return text

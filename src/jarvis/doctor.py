@@ -53,6 +53,11 @@ def doctor(cfg: Config) -> int:
     if cfg.screen.enabled:
         line("ok", "Analyse d'écran", f"toutes les {cfg.screen.interval_s:g} s au plus, modèle local "
              f"{cfg.screen.model or cfg.llm.model}")
+    if cfg.browser.enabled:
+        built = (models_dir().parent / "extension" / "chromium" / "config.js").exists()
+        line("ok" if built else "warn", "Pilotage du navigateur",
+             f"extension prête (port {cfg.browser.port}), à charger dans ton navigateur" if built
+             else "lance `jarvis extension`, puis charge l'extension dans ton navigateur")
 
     import sounddevice as sd
     for kind, device, label in (("input", cfg.audio.input_device, "Micro"),

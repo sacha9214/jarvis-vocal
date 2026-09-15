@@ -37,14 +37,24 @@ class SttConfig:
 
 @dataclass
 class LlmConfig:
-    backend: str = "ollama"
-    model: str = "auto"
+    backend: str = "ollama"        # moteur au démarrage : ollama (local) | claude
+    model: str = "auto"            # modèle Ollama
     host: str = "http://127.0.0.1:11434"
     num_ctx: int = 4096            # contexte court = pré-remplissage rapide et moins de mémoire
     max_tokens: int = 320
     temperature: float = 0.6
     keep_alive: str = "30m"        # le modèle reste chargé entre deux questions
     history_turns: int = 6
+
+
+@dataclass
+class ClaudeConfig:
+    model: str = "haiku"           # haiku : le plus rapide à répondre ; sonnet pour les questions difficiles
+    auth: str = "subscription"     # subscription (ton abonnement, `claude auth login`) | api_key (ANTHROPIC_API_KEY)
+    executable: str = "claude"
+    effort: str = ""               # vide = défaut du modèle ; low réduit la réflexion des modèles qui en font
+    fallback_to_local: bool = True
+    first_token_timeout_s: float = 30.0
 
 
 @dataclass
@@ -68,6 +78,7 @@ class Config:
     vad: VadConfig = field(default_factory=VadConfig)
     stt: SttConfig = field(default_factory=SttConfig)
     llm: LlmConfig = field(default_factory=LlmConfig)
+    claude: ClaudeConfig = field(default_factory=ClaudeConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
 

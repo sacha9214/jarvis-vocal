@@ -31,6 +31,30 @@ def test_spoken_forms():
     assert fastpath.say_date(datetime(2026, 1, 1)) == "Nous sommes le jeudi 1er janvier."
 
 
+@pytest.mark.parametrize(("text", "target"), [
+    ("Passe en local.", "local"),
+    ("Bascule en mode hors ligne", "local"),
+    ("Jarvis, passe sur Claude.", "claude"),
+    ("Utilise Claude s'il te plaît", "claude"),
+    ("Passe sur Clode", "claude"),
+    ("Pas sur Claude.", "claude"),                  # transcriptions réelles de Whisper
+    ("Passons local.", "local"),
+    ("Passe au modèle local", "local"),
+    ("Explique-moi Claude Monet", None),
+    ("Est-ce que Claude est meilleur que toi ?", None),
+    ("Mets de la musique", None),
+    ("Il ne faut pas passer par le local technique ce soir", None),
+    ("Quel modèle tu utilises ?", None),
+])
+def test_engine_switch(text, target):
+    assert fastpath.switch_target(text) == target
+
+
+def test_asks_engine():
+    assert fastpath.asks_engine("Quel modèle tu utilises ?")
+    assert not fastpath.asks_engine("Quel modèle de voiture choisir ?")
+
+
 @pytest.mark.parametrize(("text", "expected"), [("Stop !", True), ("Tais-toi.", True), ("Arrête la musique", False)])
 def test_stop(text, expected):
     assert fastpath.is_stop(text) is expected

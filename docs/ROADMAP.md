@@ -5,7 +5,7 @@ Une étape à la fois. Chacune arrive testée, mesurée et documentée avant la 
 | # | Étape | État |
 |---|-------|------|
 | 1 | **Pipeline vocal local optimisé** : mot d'activation, VAD, Whisper, Ollama en flux, Piper, coupure de parole, `bench`/`doctor`/`setup` | ✅ |
-| 2 | **Abonnement Claude** : moteur `claude-code` qui pilote le binaire officiel `claude` (connexion par `claude /login`, Jarvis ne lit jamais tes jetons) ; clé API en option | à faire |
+| 2 | **Abonnement Claude** : moteur qui pilote le binaire officiel `claude` en processus persistant (connexion par `claude auth login`, Jarvis ne lit jamais tes jetons), isolé de `~/.claude`, bascule à la voix, repli local automatique ; clé API en option | ✅ |
 | 3 | **Outils & permissions** : registre typé, niveaux N1/N2/N3, confirmation vocale, serveur MCP partagé avec le moteur Claude Code | à faire |
 | 4 | **Contrôle du PC, Windows + macOS** : apps, média, volume, minuteurs, via une couche `platform/` testée sur les deux OS | à faire |
 | 5 | **Intégrations une par une** (agenda, musique, domotique…), chacune optionnelle et testée | à faire |

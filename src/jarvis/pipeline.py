@@ -3,7 +3,7 @@
 Tout vise la latence perçue (fin de ta phrase → première syllabe) :
 - fin de phrase détectée par un VAD neuronal, pas par un délai fixe ;
 - modèles chargés et chauffés au démarrage, gardés en mémoire ;
-- réflexes (heure, date, stop) répondus sans LLM ;
+- réflexes (heure, date, stop, bascule local/Claude) répondus sans LLM ;
 - la réponse est synthétisée morceau par morceau pendant que le LLM écrit ;
 - l'écoute continue pendant qu'il parle : « Hey Jarvis » lui coupe la parole.
 """
@@ -25,7 +25,7 @@ from .audio.endpoint import UtteranceRecorder
 from .audio.io import Microphone, Player
 from .audio.vad import CHUNK
 from .config import Config
-from .llm.base import Delta, Done, Message
+from .llm.base import Delta, Done, Message, Notice
 from .metrics import TurnTimer
 from .stt import clean_transcript
 from .text.chunker import SpeechChunker
@@ -85,7 +85,7 @@ class Assistant:
     def run(self) -> None:
         frames = self.mic.frames()
         wakeword = self.parts.wakeword
-        LOG.info("À l'écoute : dis « Hey Jarvis ».")
+        LOG.info("À l'écoute : dis « Hey Jarvis ». %s", self.parts.llm.describe())
         for frame in frames:
             if wakeword.process(to_int16(frame)) >= wakeword.threshold:
                 wakeword.reset()
@@ -120,13 +120,20 @@ class Assistant:
             self._skip(frames, _ECHO_GUARD_S)
             timeout = self.cfg.audio.follow_up_s
 
+    def _reflex(self, text: str) -> str | None:
+        if target := fastpath.switch_target(text):
+            return self.parts.llm.switch(target)
+        if fastpath.asks_engine(text):
+            return self.parts.llm.describe()
+        return fastpath.reply(text)
+
     def _answer(self, text: str, timer: TurnTimer, frames: Iterator[np.ndarray]) -> bool:
         """Répond en parlant ; renvoie True si « Hey Jarvis » a coupé la réponse."""
         cancel = threading.Event()
         speaker = Speaker(self.parts.tts, self.player, cancel, timer)
         parts: list[str] = []
         producer = None
-        if quick := fastpath.reply(text):
+        if quick := self._reflex(text):
             timer.mark("fastpath")
             parts.append(quick)
             speaker.say(quick)
@@ -156,9 +163,11 @@ class Assistant:
                     for piece in chunker.feed(event.text):
                         timer.mark("first_chunk")
                         speaker.say(piece)
+                elif isinstance(event, Notice):
+                    speaker.say(event.text)
                 elif isinstance(event, Done):
-                    LOG.debug("LLM : prompt %d tokens en %.0f ms, %.0f tokens/s",
-                              event.prompt_tokens, event.prompt_ms, event.tokens_per_s)
+                    LOG.debug("LLM : prompt %d tokens, %d tokens produits",
+                              event.prompt_tokens, event.output_tokens)
             for piece in chunker.flush():
                 timer.mark("first_chunk")
                 speaker.say(piece)

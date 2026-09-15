@@ -12,7 +12,7 @@ import soxr
 from . import app, hardware, prompts
 from .audio import SAMPLE_RATE
 from .config import Config
-from .llm import load_llm
+from .llm import load_backend
 from .llm.base import Delta, Done
 from .stt import clean_transcript, load_stt
 from .text.chunker import SpeechChunker
@@ -44,9 +44,10 @@ def _ms(seconds: float) -> str:
 
 
 def run(cfg: Config, repeats: int = 3) -> int:
+    engine = f"Claude {cfg.claude.model}" if cfg.llm.backend == "claude" else f"Ollama {cfg.llm.model}"
     print(f"Matériel : {hardware.detect()}")
-    print(f"Modèles  : STT {cfg.stt.backend} {cfg.stt.model} ({cfg.stt.device}) | "
-          f"LLM {cfg.llm.model} | voix {cfg.tts.voice}\n")
+    print(f"Modèles  : STT {cfg.stt.backend} {cfg.stt.model} ({cfg.stt.device}) | LLM {engine} | "
+          f"voix {cfg.tts.voice}\n")
 
     start = time.perf_counter()
     tts = app.build_tts(cfg)
@@ -69,12 +70,12 @@ def run(cfg: Config, repeats: int = 3) -> int:
         print(f"[STT]  {len(audio) / SAMPLE_RATE:.1f} s d'audio → {_ms(best)}  {clean_transcript(str(text))!r}")
     stt_ms = statistics.median(stt_times)
 
-    llm = load_llm(cfg.llm)
+    llm = load_backend(cfg, cfg.llm.backend)
     llm.check()
     system = prompts.system_prompt(cfg.user_name, date.today())
     start = time.perf_counter()
     llm.warmup(system)
-    print(f"\n[LLM]  chargement + prompt système {_ms(time.perf_counter() - start)}")
+    print(f"\n[LLM]  démarrage + chauffe {_ms(time.perf_counter() - start)}")
     first_chunks = []
     for prompt in LLM_PROMPTS:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
@@ -96,8 +97,7 @@ def run(cfg: Config, repeats: int = 3) -> int:
         first_chunk = first_chunk if first_chunk is not None else total
         first_chunks.append(first_chunk)
         print(f"[LLM]  1er token {_ms(first_token or total)} | 1re phrase {_ms(first_chunk)} | "
-              f"total {_ms(total)} | {done.tokens_per_s:.0f} tok/s | "
-              f"prompt {done.prompt_tokens} tok en {done.prompt_ms:.0f} ms")
+              f"total {_ms(total)} | prompt {done.prompt_tokens} tok | {done.output_tokens} tok produits")
         print(f"       {''.join(text).strip()!r}")
     chunk_ms = statistics.median(first_chunks)
 

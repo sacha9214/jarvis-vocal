@@ -11,7 +11,8 @@ from . import assets
 from .audio.vad import SileroVad
 from .audio.wakeword import WakeWord
 from .config import Config
-from .llm import LanguageModel, load_llm
+from .llm import load_llm
+from .llm.router import Router
 from .stt import SpeechToText, load_stt
 from .tts import TextToSpeech
 
@@ -36,7 +37,7 @@ def build_vad(cfg: Config) -> SileroVad:
 @dataclass
 class Components:
     stt: SpeechToText
-    llm: LanguageModel
+    llm: Router
     tts: TextToSpeech
     wakeword: WakeWord
     vad: SileroVad
@@ -45,7 +46,7 @@ class Components:
 def _timed[T](label: str, build: Callable[[], T]) -> T:
     start = time.perf_counter()
     result = build()
-    LOG.info("  %-28s prêt en %5.0f ms", label, (time.perf_counter() - start) * 1000)
+    LOG.info("  %-32s prêt en %5.0f ms", label, (time.perf_counter() - start) * 1000)
     return result
 
 
@@ -53,10 +54,10 @@ def load_all(cfg: Config, system_prompt: str) -> Components:
     """Charge et chauffe tout en parallèle : le démarrage prend le temps du plus lent,
     pas la somme. Le STT est chauffé sur le thread principal, celui qui transcrira
     ensuite (par prudence avec MLX et ses flux GPU)."""
-    llm = load_llm(cfg.llm)
+    llm = load_llm(cfg)
     llm.check()
 
-    def warm_llm() -> LanguageModel:
+    def warm_llm() -> Router:
         llm.warmup(system_prompt)
         return llm
 
@@ -71,7 +72,7 @@ def load_all(cfg: Config, system_prompt: str) -> Components:
         return stt
 
     with ThreadPoolExecutor(max_workers=3, thread_name_prefix="load") as pool:
-        llm_future = pool.submit(_timed, f"LLM {llm.model}", warm_llm)
+        llm_future = pool.submit(_timed, f"Moteur {llm.active} ({llm.model})", warm_llm)
         tts_future = pool.submit(_timed, f"Voix {cfg.tts.voice}", warm_tts)
         ears_future = pool.submit(_timed, "Mot d'activation + VAD", lambda: (build_wakeword(cfg), build_vad(cfg)))
         stt = _timed(f"Transcription {cfg.stt.backend}", warm_stt)

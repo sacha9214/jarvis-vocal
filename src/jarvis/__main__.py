@@ -32,10 +32,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-v", "--verbose", action="store_true", help="journal détaillé")
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command")
-    sub.add_parser("run", help="lance l'assistant (par défaut)")
+    run = sub.add_parser("run", help="lance l'assistant (par défaut)")
+    run.add_argument("--backend", choices=["ollama", "claude"], help="moteur au démarrage")
     bench = sub.add_parser("bench", help="mesure la latence de chaque étage, sans micro")
-    bench.add_argument("--llm-model", help="ex. qwen3.5:2b")
-    bench.add_argument("--stt-model", help="ex. mlx-community/whisper-large-v3-turbo-q4")
+    bench.add_argument("--backend", choices=["ollama", "claude"], help="moteur à mesurer")
+    bench.add_argument("--llm-model", help="modèle Ollama, ex. qwen3.5:2b")
+    bench.add_argument("--claude-model", help="modèle Claude, ex. haiku ou sonnet")
+    bench.add_argument("--stt-model", help="ex. mlx-community/whisper-large-v3-turbo")
     bench.add_argument("--repeats", type=int, default=3)
     sub.add_parser("doctor", help="vérifie l'installation")
     sub.add_parser("setup", help="télécharge les modèles")
@@ -49,16 +52,20 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         cfg = config_module.load(Path(args.config) if args.config else None)
+        if getattr(args, "backend", None):
+            cfg.llm.backend = args.backend
         if args.command == "bench":
             if args.llm_model:
                 cfg.llm.model = args.llm_model
+            if args.claude_model:
+                cfg.claude.model = args.claude_model
             if args.stt_model:
                 cfg.stt.model = args.stt_model
         cfg.resolve()
 
         if args.command == "bench":
-            from .bench import run
-            return run(cfg, args.repeats)
+            from .bench import run as run_bench
+            return run_bench(cfg, args.repeats)
         if args.command == "doctor":
             from .doctor import doctor
             return doctor(cfg)

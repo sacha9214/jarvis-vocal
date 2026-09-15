@@ -19,6 +19,12 @@ class ToolCall:
 
 
 @dataclass(frozen=True)
+class Notice:
+    """Phrase à dire en dehors de la réponse du modèle (bascule, repli)."""
+    text: str
+
+
+@dataclass(frozen=True)
 class Done:
     prompt_tokens: int = 0
     prompt_ms: float = 0.0

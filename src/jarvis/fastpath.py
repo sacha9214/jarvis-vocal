@@ -23,6 +23,35 @@ _STOP = re.compile(r"(?:jarvis )?(?:stop|stoppe|arrete|arrete toi|tais toi|silen
                    r"|c est bon|rien|non merci|merci c est tout|c est tout)(?: jarvis)?")
 
 
+# Bascule de moteur : Whisper déforme souvent ces phrases courtes (« Passe sur Claude » →
+# « Pas sur Claude », « Passe en local » → « Passons local »). Plutôt qu'une phrase exacte,
+# on reconnaît une phrase courte faite d'un verbe de bascule et d'une seule cible.
+_SWITCH_VERBS = {"passe", "passes", "passez", "passons", "passer", "pas", "pass", "bascule", "basculer",
+                 "repasse", "reviens", "retourne", "mode", "utilise", "utiliser", "active", "mets", "met"}
+_SWITCH_FILLER = {"jarvis", "hey", "ok", "dis", "s", "il", "te", "vous", "plait", "stp", "sur", "en", "a",
+                  "au", "avec", "le", "la", "moteur", "modele", "maintenant", "on"}
+_CLAUDE_WORDS = {"claude", "claud", "clode", "clod"}
+_LOCAL_WORDS = {"local", "locale", "horsligne", "ollama"}
+_WHICH_ENGINE = re.compile(
+    _PREFIX + r"(?:quel (?:modele|cerveau|mode|moteur) (?:utilises tu|tu utilises|est actif)"
+    r"|tu utilises quel (?:modele|mode|moteur)|tu es en quel mode|tu tournes sur quoi)" + _POLITE)
+
+
+def switch_target(text: str) -> str | None:
+    """« passe sur Claude » → "claude", « passe en local » → "local", sinon None."""
+    words = normalize(text).replace("hors ligne", "horsligne").split()
+    content = [w for w in words if w not in _SWITCH_FILLER]
+    if not content or len(content) > 3 or not any(w in _SWITCH_VERBS for w in content):
+        return None
+    targets = {"claude" if w in _CLAUDE_WORDS else "local" for w in content if w in _CLAUDE_WORDS | _LOCAL_WORDS}
+    unknown = [w for w in content if w not in _SWITCH_VERBS | _CLAUDE_WORDS | _LOCAL_WORDS]
+    return targets.pop() if len(targets) == 1 and not unknown else None
+
+
+def asks_engine(text: str) -> bool:
+    return bool(_WHICH_ENGINE.fullmatch(normalize(text)))
+
+
 def normalize(text: str) -> str:
     text = unicodedata.normalize("NFD", text.lower())
     text = "".join(c for c in text if unicodedata.category(c) != "Mn")

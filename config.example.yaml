@@ -23,7 +23,7 @@ stt:
   language: fr
 
 llm:
-  backend: ollama
+  backend: ollama           # moteur au démarrage : ollama (local) | claude. À la voix : « passe sur Claude » / « passe en local »
   model: auto               # ex. qwen3.5:4b-mlx (Mac 16 Go), qwen3.5:4b (GPU 6-8 Go), qwen3.5:2b
   host: http://127.0.0.1:11434
   num_ctx: 4096
@@ -31,6 +31,14 @@ llm:
   temperature: 0.6
   keep_alive: 30m           # le modèle reste chargé entre deux questions
   history_turns: 6
+
+claude:                     # moteur Claude : le binaire officiel `claude`, connecté avec `claude auth login`
+  model: haiku              # haiku = réponse la plus rapide ; sonnet pour les questions difficiles
+  auth: subscription        # subscription (ton abonnement) | api_key (variable ANTHROPIC_API_KEY)
+  executable: claude
+  effort: ""                # vide = défaut du modèle ; low = moins de réflexion, plus rapide
+  fallback_to_local: true   # si Claude échoue avant de parler, Jarvis répond en local
+  first_token_timeout_s: 30
 
 tts:
   backend: piper

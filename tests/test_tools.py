@@ -145,7 +145,7 @@ def test_a_delayed_shutdown_is_announced_warned_and_cancellable(monkeypatch):
         "C'est parti pour l'extinction dans 25 minutes. Dis « annule l'extinction » quand tu veux pour arrêter.")
     action, remaining = scheduler.pending()
     assert action == "shutdown" and 1490 < remaining <= 1500
-    assert scheduler.status().startswith("L'extinction de l'ordinateur dans 24 minutes")
+    assert scheduler.status() == "L'extinction de l'ordinateur dans 25 minutes."    # arrondi, pas « 24 min 59 s »
     assert scheduler.cancel() == "J'annule l'extinction."
     assert scheduler.pending() is None and scheduler.status() == "Rien n'est programmé pour le moment."
 

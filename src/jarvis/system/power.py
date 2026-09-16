@@ -86,7 +86,9 @@ class PowerScheduler:
         if waiting is None:
             return "Rien n'est programmé pour le moment."
         action, remaining = waiting
-        return f"{SPOKEN[action].capitalize()} de l'ordinateur dans {spoken_duration(remaining)}."
+        # Arrondi à la seconde : dire « 24 minutes 59 secondes » juste après « dans 25 minutes » est absurde,
+        # et l'horloge de Windows (pas de 15 ms) ne donnait pas le même texte que celle du Mac.
+        return f"{SPOKEN[action].capitalize()} de l'ordinateur dans {spoken_duration(round(remaining))}."
 
     def cancel(self) -> str:
         with self._lock:

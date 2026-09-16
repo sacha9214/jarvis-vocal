@@ -1,5 +1,5 @@
 """Agenda : dates dites à voix haute, agendas iCal (Google, Outlook, iCloud), rendez-vous de Jarvis, rappels."""
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -10,11 +10,39 @@ from jarvis.agenda import Agenda, masked, parse_day, parse_new_event
 WEDNESDAY = date(2026, 9, 16)
 NOW = datetime(2026, 9, 16, 14, 0)
 
-# Un agenda comme Google l'exporte : fuseau horaire, récurrence avec exception, journée entière, heure UTC.
+# Un agenda au format de Google. Heures « flottantes » (sans fuseau) : lues dans l'heure de la machine, pour que le
+# test donne la même chose à Paris et sur la CI, réglée en heure universelle. Les fuseaux ont leur propre test.
 ICS = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Google Inc//Google Calendar 70.9054//EN
 X-WR-CALNAME:Perso
+BEGIN:VEVENT
+UID:dentiste@exemple
+SUMMARY:Dentiste
+LOCATION:Cabinet du Dr Martin
+DTSTART:20260917T140000
+DTEND:20260917T143000
+END:VEVENT
+BEGIN:VEVENT
+UID:foot@exemple
+SUMMARY:Entraînement de foot
+DTSTART:20260901T190000
+DTEND:20260901T203000
+RRULE:FREQ=WEEKLY;BYDAY=TU
+EXDATE:20260922T190000
+END:VEVENT
+BEGIN:VEVENT
+UID:anniv@exemple
+SUMMARY:Anniversaire de Léa
+DTSTART;VALUE=DATE:20260918
+DTEND;VALUE=DATE:20260919
+END:VEVENT
+END:VCALENDAR
+""".replace("\n", "\r\n").encode("utf-8")
+
+TIMEZONES = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Google Inc//Google Calendar 70.9054//EN
 BEGIN:VTIMEZONE
 TZID:Europe/Paris
 BEGIN:STANDARD
@@ -31,25 +59,16 @@ RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU
 END:DAYLIGHT
 END:VTIMEZONE
 BEGIN:VEVENT
-UID:dentiste@exemple
-SUMMARY:Dentiste
-LOCATION:Cabinet du Dr Martin
+UID:paris@exemple
+SUMMARY:Réunion à Paris
 DTSTART;TZID=Europe/Paris:20260917T140000
-DTEND;TZID=Europe/Paris:20260917T143000
+DTEND;TZID=Europe/Paris:20260917T150000
 END:VEVENT
 BEGIN:VEVENT
-UID:foot@exemple
-SUMMARY:Entraînement de foot
-DTSTART;TZID=Europe/Paris:20260901T190000
-DTEND;TZID=Europe/Paris:20260901T203000
-RRULE:FREQ=WEEKLY;BYDAY=TU
-EXDATE;TZID=Europe/Paris:20260922T190000
-END:VEVENT
-BEGIN:VEVENT
-UID:anniv@exemple
-SUMMARY:Anniversaire de Léa
-DTSTART;VALUE=DATE:20260918
-DTEND;VALUE=DATE:20260919
+UID:utc@exemple
+SUMMARY:Appel avec Montréal
+DTSTART:20260917T130000Z
+DTEND:20260917T140000Z
 END:VEVENT
 END:VCALENDAR
 """.replace("\n", "\r\n").encode("utf-8")
@@ -99,6 +118,21 @@ def test_reading_a_google_calendar(agenda):
     assert agenda.recite_day(date(2026, 9, 29), WEDNESDAY) == \
         "Mardi 29 septembre, tu as 1 chose : à 19 heures, Entraînement de foot."          # récurrence
     assert agenda.recite_day(date(2026, 9, 22), WEDNESDAY) == "Rien de prévu le mardi 22 septembre."   # exception
+
+
+def test_timezones_are_converted_to_the_local_time_of_the_machine(tmp_path):
+    """14 h à Paris et 13 h en heure universelle : même instant qu'on calcule soi-même, quel que soit le fuseau
+    de la machine (Paris sur le Mac de Sacha, heure universelle sur la CI)."""
+    from zoneinfo import ZoneInfo
+
+    (tmp_path / "fuseaux.ics").write_bytes(TIMEZONES)
+    agenda = Agenda(tmp_path / "agenda.json", sources=[str(tmp_path / "fuseaux.ics")], clock=lambda: NOW)
+    events = {e.title: e for e in agenda.between(datetime(2026, 9, 16), datetime(2026, 9, 19))}
+    paris = datetime(2026, 9, 17, 14, 0, tzinfo=ZoneInfo("Europe/Paris"))
+    universal = datetime(2026, 9, 17, 13, 0, tzinfo=UTC)
+    assert events["Réunion à Paris"].start == paris.timestamp()
+    assert events["Appel avec Montréal"].start == universal.timestamp()
+    assert events["Réunion à Paris"].starts == paris.astimezone().replace(tzinfo=None)   # dit en heure locale
 
 
 def test_next_event_and_free_time(agenda):

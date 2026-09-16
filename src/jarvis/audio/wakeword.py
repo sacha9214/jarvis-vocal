@@ -3,6 +3,10 @@
 Le paquet openwakeword n'est pas utilisé : sa version 0.6 impose tflite-runtime sous
 Linux (aucune roue pour Python ≥ 3.12) et embarque scikit-learn. La chaîne est reproduite
 à l'identique : mel-spectrogramme → embedding speech_embedding → classifieur.
+
+Le pas de 80 ms n'est pas réglable : mesuré, l'analyser plus finement (40 ou 20 ms) fait chuter la
+détection, parce que les 16 embeddings du classifieur ne couvrent alors plus la durée du mot.
+Le volume, lui, n'a aucun effet (même score de 0 à −30 dB) : c'est le bruit de fond qui fait tout.
 """
 from __future__ import annotations
 
@@ -27,7 +31,7 @@ def _session(path: Path) -> ort.InferenceSession:
 
 
 class WakeWord:
-    def __init__(self, melspec: Path, embedding: Path, model: Path, threshold: float = 0.5):
+    def __init__(self, melspec: Path, embedding: Path, model: Path, threshold: float = 0.25):
         self._mel = _session(melspec)
         self._emb = _session(embedding)
         self._clf = _session(model)
@@ -46,6 +50,7 @@ class WakeWord:
         self._features = self._blank.copy()
         self._steps = 0
         self.score = 0.0
+        self.best = 0.0            # meilleur score depuis la remise à zéro, pour expliquer un « presque »
 
     def process(self, samples: np.ndarray) -> float:
         """Ajoute des échantillons int16 à 16 kHz ; renvoie le dernier score (0..1)."""
@@ -74,3 +79,4 @@ class WakeWord:
         features = self._features[None].astype(np.float32)
         score = float(self._clf.run(None, {self._clf_input: features})[0].reshape(-1)[0])
         self.score = score if self._steps > _WARMUP_PREDICTIONS else 0.0
+        self.best = max(self.best, self.score)

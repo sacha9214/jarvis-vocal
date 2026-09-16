@@ -565,6 +565,9 @@
         break;
       case "levels": store.mic = event.mic; store.out = event.out; break;
       case "engine": setEngine(event.active, event.model); break;
+      case "near_miss":
+        logEntry("announce", `<span class="k">ÉCOUTE</span>J'ai cru entendre « Hey Jarvis » (score ${event.score}, seuil ${event.threshold}) — baisse la sensibilité dans les réglages si ça se répète`);
+        break;
       case "browsers": {
         const names = event.names || [];
         logEntry("announce", `<span class="k">NAVIGATEUR</span>${names.length ? `${esc(names.join(", "))} relié à Jarvis` : "Aucun navigateur relié"}`);

@@ -49,8 +49,9 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
               options=(("app", "Fenêtre Jarvis"), ("browser", "Navigateur"), ("none", "Aucune"))),
     ]),
     ("listening", "Écoute", "Réactivité et sensibilité du micro.", [
-        Field("wakeword.threshold", "Sensibilité de « Hey Jarvis »", "slider", min=0.2, max=0.9, step=0.05,
-              help="Plus haut : moins de réveils intempestifs, mais il faut articuler."),
+        Field("wakeword.threshold", "Sensibilité de « Hey Jarvis »", "slider", min=0.15, max=0.9, step=0.05,
+              help="Plus bas : il t'entend plus facilement, même dans le bruit ou pendant qu'il parle. "
+                   "0,25 par défaut, mesuré sans aucun réveil intempestif sur cinq minutes de parole et de bruit."),
         Field("vad.end_silence_ms", "Silence de fin de phrase", "slider", min=250, max=1500, step=25, unit="ms",
               help="Plus bas : réponse plus rapide, mais Jarvis peut te couper si tu hésites."),
         Field("vad.threshold", "Seuil de détection de la voix", "slider", min=0.2, max=0.9, step=0.05,

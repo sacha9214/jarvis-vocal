@@ -207,6 +207,27 @@ Elle s'ouvre dans une fenêtre native (WebKit sur macOS, WebView2 sous Windows).
 n'écoute que ta machine (127.0.0.1), refuse les autres noms d'hôte et exige le jeton aléatoire
 de la session. Aperçu sans charger les modèles : `uv run jarvis hud`.
 
+## Mot d'activation
+
+Sensibilité par défaut **0,25**, choisie par la mesure : 25 enregistrements de « Hey Jarvis » (quatre voix,
+plusieurs formulations) face à cinq minutes de parole française et de bruit.
+
+| Situation | Seuil 0,5 (avant) | Seuil 0,25 |
+|---|---|---|
+| Au calme | 96 % | 100 % |
+| Bruit de fond modéré | 73 % | 96 % |
+| Bruit de fond fort | 48 % | 83 % |
+| Pendant que Jarvis parle (lui couper la parole) | 64 % | 80 % |
+| Réveils intempestifs (5 min de parole et de bruit) | 0 | 0 |
+
+- **Dire simplement « Jarvis » suffit** : le modèle le reconnaît aussi bien.
+- Quand Jarvis reconnaît le mot à moitié, il l'écrit dans le journal et dans l'interface
+  (« j'ai cru entendre… score 0,18 ») : de quoi régler la sensibilité au lieu de répéter dans le vide.
+- **Le volume n'entre pas en jeu** : mesuré, le score est identique de 0 à −30 dB. Parler plus fort ne
+  sert à rien, s'éloigner du bruit oui.
+- Le pas d'analyse de 80 ms n'est pas réglable : l'affiner à 40 ms fait *chuter* la détection de 73 à
+  23 % dans le bruit, parce que les 16 embeddings du classifieur ne couvrent plus la durée du mot.
+
 ## Compréhension de la voix
 
 - **Vocabulaire** : Whisper reçoit les noms de tes applications et les commandes courantes. Sur

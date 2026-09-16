@@ -17,6 +17,7 @@ import difflib
 import logging
 import queue
 import threading
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import date
@@ -45,6 +46,8 @@ _ECHO_GUARD_S = 0.35   # après une réponse, ignore la réverbération de sa pr
 _CONTINUATION_S = 1.5  # attente de la suite d'une phrase inachevée (« Ouvre… euh… »)
 _LEVEL_EVERY = 3       # trames entre deux niveaux audio publiés (~10 par seconde)
 _MAX_TOOL_ROUNDS = 3   # lire la page, puis agir, puis répondre : au-delà, le petit modèle tourne en rond
+_NEAR_MISS_RATIO = 0.6    # score atteint, en part du seuil, à partir duquel on signale un « presque »
+_NEAR_MISS_EVERY_S = 20.0
 
 
 @dataclass
@@ -122,6 +125,7 @@ class Assistant:
         self._decided = threading.Event()
         self._cache_stale = False           # l'analyse d'écran ou la review a évincé la conversation d'Ollama
         self._warm_context: str | None = None   # contexte d'outils dont le cache d'Ollama contient le prompt
+        self._last_near_miss = 0.0
         self._warming = threading.Lock()
         parts.executor.confirm = self._confirm
         parts.executor.on_result = self._on_tool_result
@@ -167,7 +171,9 @@ class Assistant:
         for frame in frames:
             if self._tick(frame, frames):
                 self._state("sleeping")
+            self._near_miss(wakeword)
             if self.manual_wake.is_set() or wakeword.process(to_int16(frame)) >= wakeword.threshold:
+                LOG.debug("Mot d'activation : score %.2f (seuil %.2f)", wakeword.score, wakeword.threshold)
                 self.manual_wake.clear()
                 self._stop_requested.clear()
                 wakeword.reset()
@@ -464,6 +470,19 @@ class Assistant:
             finally:
                 self._warming.release()
         threading.Thread(target=warm, name="rechauffe", daemon=True).start()
+
+    def _near_miss(self, wakeword) -> None:
+        """« Presque » : le mot a été reconnu à moitié. Le dire aide à régler la sensibilité au lieu de
+        répéter dans le vide."""
+        if not self.cfg.wakeword.near_miss or wakeword.score < wakeword.threshold * _NEAR_MISS_RATIO:
+            return
+        now = time.monotonic()
+        if now - self._last_near_miss < _NEAR_MISS_EVERY_S:
+            return
+        self._last_near_miss = now
+        LOG.info("👂 J'ai cru entendre « Hey Jarvis » (score %.2f, seuil %.2f) : baisse la sensibilité dans les "
+                 "réglages si ça se répète.", wakeword.score, wakeword.threshold)
+        self.bus.publish("near_miss", score=round(float(wakeword.score), 2), threshold=wakeword.threshold)
 
     def _health(self) -> None:
         """Une ligne de journal par conversation : ce qu'il faut pour comprendre un ralentissement ou un plantage."""

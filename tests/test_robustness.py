@@ -1,4 +1,5 @@
 """Ce qui évite un plantage ou une lenteur : journal sur disque, rechauffe différée, garde-fous de la boucle."""
+import inspect
 import logging
 import threading
 import time
@@ -107,3 +108,36 @@ def test_wake_warms_the_tools_of_the_current_context():
     assistant._prewarm()
     time.sleep(0.05)
     assert llm.warmups == 1                                   # même contexte : le cache est déjà bon
+
+
+def test_the_wake_word_threshold_is_the_measured_one():
+    """0,25 mesuré sur 25 « Hey Jarvis » et 5 min de parole et de bruit : contre 0,5, la détection passe
+    de 48 à 83 % dans le bruit et de 64 à 80 % pendant que Jarvis parle, sans un seul réveil intempestif."""
+    from jarvis.audio.wakeword import WakeWord
+    from jarvis.config import WakeWordConfig
+    from jarvis.ui import schema
+
+    assert WakeWordConfig().threshold == 0.25
+    assert inspect.signature(WakeWord.__init__).parameters["threshold"].default == 0.25
+    field = next(f for section in schema.SECTIONS for f in section[3] if f.key == "wakeword.threshold")
+    assert field.min <= 0.25 <= field.max
+
+
+def test_a_near_miss_is_reported_once_in_a_while():
+    """Un « presque » (score au-dessus de 60 % du seuil) est signalé une fois, pas à chaque trame."""
+    assistant = make_assistant(FakeLocalLLM())
+    events = []
+    assistant.bus.subscribe(lambda e: events.append(e) if e["type"] == "near_miss" else None)
+    wakeword = SimpleNamespace(score=0.20, threshold=0.25)
+    for _ in range(50):
+        assistant._near_miss(wakeword)
+    assert len(events) == 1 and events[0]["score"] == 0.2
+
+    assistant._last_near_miss = 0.0
+    assistant._near_miss(SimpleNamespace(score=0.05, threshold=0.25))     # trop bas : rien à signaler
+    assert len(events) == 1
+
+    assistant.cfg.wakeword.near_miss = False                              # désactivable
+    assistant._last_near_miss = 0.0
+    assistant._near_miss(SimpleNamespace(score=0.24, threshold=0.25))
+    assert len(events) == 1

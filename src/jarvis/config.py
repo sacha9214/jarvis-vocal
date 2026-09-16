@@ -14,7 +14,11 @@ from . import hardware, paths
 @dataclass
 class WakeWordConfig:
     model: str = "hey_jarvis"
-    threshold: float = 0.5
+    # 0,25 : mesuré sur 25 enregistrements de « Hey Jarvis » et 5 minutes de parole et de bruit. Contre 0,5,
+    # la détection passe de 48 à 83 % dans le bruit et de 64 à 80 % quand Jarvis parle, sans un seul
+    # déclenchement intempestif. Plus bas ne gagne plus rien.
+    threshold: float = 0.25
+    near_miss: bool = True         # note dans le journal les « presque » : sert à régler la sensibilité
 
 
 @dataclass

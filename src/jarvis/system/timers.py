@@ -47,7 +47,7 @@ class Timers:
             timer.cancel()
         if not items:
             return "Aucun minuteur en cours."
-        return "Minuteur annulé." if len(items) == 1 else f"{len(items)} minuteurs annulés."
+        return "J'ai annulé le minuteur." if len(items) == 1 else f"{len(items)} minuteurs annulés."
 
     def snapshot(self) -> list[dict[str, Any]]:
         with self._lock:

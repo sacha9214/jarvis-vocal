@@ -95,7 +95,7 @@ def close_app(name: str) -> str:
 @tool("lock_screen", "Verrouille l'écran de l'ordinateur.", level=N2, confirm=lambda a: "Je verrouille l'écran ?")
 def lock_screen() -> str:
     power.execute("lock")
-    return "Écran verrouillé."
+    return "J'ai verrouillé l'écran."
 
 
 @tool("power", "Éteint, redémarre ou met en veille l'ordinateur, après un délai annulable.",
@@ -208,14 +208,14 @@ def _browser():
 def _media_sentence(action: str, value: float | None, result: dict) -> str:
     seconds = int(value or 10)
     return {
-        "play": "Lecture.", "pause": "Pause.", "toggle": "C'est fait.",
+        "play": "Je relance la vidéo.", "pause": "Je mets la vidéo en pause.", "toggle": "Voilà, c'est fait.",
         "volume": f"Volume de la vidéo à {result.get('volume')} pour cent.",
         "volume_up": f"Volume de la vidéo à {result.get('volume')} pour cent.",
         "volume_down": f"Volume de la vidéo à {result.get('volume')} pour cent.",
-        "mute": "Vidéo en sourdine.", "unmute": "Son de la vidéo rétabli.",
+        "mute": "Je coupe le son de la vidéo.", "unmute": "Son de la vidéo rétabli.",
         "forward": f"J'avance de {seconds} secondes.", "back": f"Je recule de {seconds} secondes.",
-        "speed": f"Vitesse {result.get('speed')}.", "next": "Vidéo suivante.",
-    }.get(action, "C'est fait.")
+        "speed": f"Vitesse {result.get('speed')}.", "next": "Je passe à la vidéo suivante.",
+    }.get(action, "Voilà, c'est fait.")
 
 
 @tool("browser_media", "Contrôle la vidéo ou la musique de l'onglet actif du navigateur (YouTube, Netflix…) : "
@@ -271,8 +271,8 @@ def browser_open(index: int | None = None, text: str = "", video: int | None = N
       {"direction": {"type": "string", "enum": ["down", "up", "top", "bottom"]}}, ("direction",), context="browser")
 def browser_scroll(direction: str) -> str:
     _browser().call("scroll", {"direction": direction})
-    return {"down": "Je descends.", "up": "Je remonte.", "top": "En haut de la page.",
-            "bottom": "En bas de la page."}.get(direction, "C'est fait.")
+    return {"down": "Je descends la page.", "up": "Je remonte la page.", "top": "Je vais en haut de la page.",
+            "bottom": "Je vais en bas de la page."}.get(direction, "Voilà, c'est fait.")
 
 
 @tool("browser_navigate", "Dans l'onglet actif : direction back (page précédente), forward ou reload, ou url à ouvrir.",
@@ -284,7 +284,8 @@ def browser_navigate(direction: str = "", url: str = "") -> str:
         _browser().call("navigate", {"url": target})
         return f"J'ouvre {url}."
     _browser().call("navigate", {"direction": direction or "reload"})
-    return {"back": "Page précédente.", "forward": "Page suivante."}.get(direction, "Je recharge la page.")
+    return {"back": "Je reviens à la page précédente.", "forward": "Je passe à la page suivante."}.get(
+        direction, "Je recharge la page.")
 
 
 @tool("browser_search", "Lance une recherche dans l'onglet actif : sur YouTube (site youtube) ou sur Google.",
@@ -322,7 +323,7 @@ def browser_close_tab() -> str:
       confirm=lambda a: f"Je tape « {str(a.get('text', ''))[:60]} » dans la page ?", context="browser")
 def browser_type(text: str, submit: bool = False) -> str:
     result = _browser().call("type", {"text": text, "submit": submit})
-    return "C'est tapé." if result.get("typed") else result.get("error") or "Je n'ai pas pu taper."
+    return "Voilà, c'est tapé." if result.get("typed") else result.get("error") or "Je n'ai pas pu taper."
 
 
 # -- éditeur de code (extension VS Code de Jarvis)
@@ -334,12 +335,15 @@ CODE_COMMANDS = ["save", "save_all", "format", "organize_imports", "comment", "u
                  "problems", "explorer", "source_control", "search_view", "sidebar", "zen", "palette", "quick_open",
                  "split", "new_file", "close_tab", "next_tab", "previous_tab", "reopen_tab"]
 _CODE_SENTENCES = {
-    "save": "Fichier enregistré.", "save_all": "Tout est enregistré.", "format": "Fichier formaté.",
-    "organize_imports": "Imports rangés.", "comment": "Ligne commentée.", "undo": "Annulé.", "redo": "Rétabli.",
-    "terminal": "Terminal.", "problems": "Voici les problèmes.", "close_tab": "Onglet fermé.",
-    "next_tab": "Onglet suivant.", "previous_tab": "Onglet précédent.", "reopen_tab": "Onglet rouvert.",
-    "definition": "Je vais à la définition.", "back": "Je reviens en arrière.", "next_error": "Erreur suivante.",
-    "previous_error": "Erreur précédente.", "zen": "Mode zen.", "split": "Éditeur divisé.",
+    "save": "J'ai enregistré le fichier.", "save_all": "J'ai tout enregistré.", "format": "J'ai formaté le fichier.",
+    "organize_imports": "J'ai rangé les imports.", "comment": "J'ai commenté la ligne.",
+    "undo": "J'ai annulé la dernière modification.", "redo": "J'ai rétabli la modification.",
+    "terminal": "Voilà le terminal.", "problems": "Voici les problèmes.", "close_tab": "J'ai fermé l'onglet.",
+    "next_tab": "Je passe à l'onglet suivant.", "previous_tab": "Je reviens à l'onglet précédent.",
+    "reopen_tab": "J'ai rouvert l'onglet.", "definition": "Je vais à la définition.",
+    "back": "Je reviens en arrière.", "next_error": "Je passe à l'erreur suivante.",
+    "previous_error": "Je reviens à l'erreur précédente.", "zen": "Je passe en mode zen.",
+    "split": "J'ai divisé l'éditeur.",
 }
 
 
@@ -405,7 +409,7 @@ def code_open(file: str = "", line: int | None = None, tab: int | None = None) -
       {"action": {"type": "string", "enum": CODE_COMMANDS}}, ("action",), context="code")
 def code_command(action: str) -> str:
     _editor().call("command", {"action": action})
-    return _CODE_SENTENCES.get(action, "C'est fait.")
+    return _CODE_SENTENCES.get(action, "Voilà, c'est fait.")
 
 
 @tool("code_search", "Cherche un texte dans tous les fichiers du projet (panneau de recherche de l'éditeur).",
@@ -430,4 +434,4 @@ def code_insert(text: str, mode: str = "cursor") -> str:
           a.get("mode", ""), "Je lance le programme ?"), context="code")
 def code_run(mode: str) -> str:
     _editor().call("run", {"mode": mode})
-    return {"debug": "Débogueur lancé.", "test": "Tests lancés."}.get(mode, "Programme lancé.")
+    return {"debug": "Je lance le débogueur.", "test": "Je lance les tests."}.get(mode, "Je lance le programme.")

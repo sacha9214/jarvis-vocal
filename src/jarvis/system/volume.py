@@ -18,7 +18,7 @@ def set_volume(level: int | None = None, change: int | None = None, mute: bool |
     if IS_MAC:
         if mute is not None:
             osascript(f"set volume output muted {'true' if mute else 'false'}")
-            return "Son coupé." if mute else "Son rétabli."
+            return "J'ai coupé le son." if mute else "J'ai remis le son."
         current = get_volume() or 0
         target = max(0, min(100, level if level is not None else current + (change or 0)))
         osascript(f"set volume output volume {target}")
@@ -28,7 +28,7 @@ def set_volume(level: int | None = None, change: int | None = None, mute: bool |
     if IS_WINDOWS:
         if mute is not None:
             press_key(_VK_MUTE)
-            return "Son coupé." if mute else "Son rétabli."
+            return "J'ai coupé le son." if mute else "J'ai remis le son."
         if level is not None:
             target = max(0, min(100, level))
             press_key(_VK_DOWN, 50)                 # butée à 0, puis montée au niveau voulu

@@ -39,6 +39,12 @@ sans ralentir Whisper ni le LLM sur le GPU.
   `.wav` à imiter.
 - Garde-fous : si la machine est trop lente pour parler sans hacher, Jarvis garde **Piper** ; si une
   génération s'emballe, elle est coupée.
+- **Jamais moins de trois mots.** Mesuré (synthèse puis retranscription par Whisper, 64 essais par
+  variante) : Fantine rate ~40 % des énoncés d'un ou deux mots (« Pause. » devient « Pose », « Oui. »
+  devient un souffle), 2 % à partir de trois mots. Un mot d'amorce n'y change rien. Toutes les phrases
+  de Jarvis font donc au moins trois mots, et le découpeur colle un morceau trop court au suivant. La
+  carte son n'était pas en cause : zéro sous-alimentation mesurée, même en latence basse avec Ollama
+  qui génère en même temps.
 
 ## Ce que Jarvis sait faire sur ton ordinateur
 

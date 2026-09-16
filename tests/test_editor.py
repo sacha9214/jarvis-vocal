@@ -299,9 +299,9 @@ def test_code_tools_speak_the_editor_answers(linked):
     assert builtin.code_open(file="app.py", line=12) == "J'ouvre src/app.py, ligne 12."
     assert builtin.code_open(line=12) == "Ligne 12."
     assert builtin.code_open() == "Dis-moi quel fichier ouvrir, ou quelle ligne."
-    assert builtin.code_command("save") == "Fichier enregistré."
+    assert builtin.code_command("save") == "J'ai enregistré le fichier."
     assert builtin.code_search("main") == "Je cherche main dans le projet."
-    assert builtin.code_run("test") == "Tests lancés."
+    assert builtin.code_run("test") == "Je lance les tests."
     assert linked.calls[-1] == ("run", {"mode": "test"})
 
 

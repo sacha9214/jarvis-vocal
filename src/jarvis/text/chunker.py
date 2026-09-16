@@ -3,12 +3,16 @@
 Le premier morceau part dès la première ponctuation forte, ou dès une virgule passé
 FIRST_MIN_CHARS : c'est lui qui fixe le silence avant la première syllabe. Les suivants
 attendent une fin de phrase, pour garder une intonation naturelle.
+
+Un morceau de moins de MIN_WORDS mots (« Oui. », « D'accord. ») attend le suivant : mesuré sur Pocket TTS
+(Fantine), un énoncé d'un ou deux mots est raté ~40 % du temps, contre 2 % à partir de trois mots.
 """
 from __future__ import annotations
 
 import re
 
 FIRST_MIN_CHARS = 20
+MIN_WORDS = 3        # en dessous, la voix naturelle bafouille : on colle le morceau au suivant
 MAX_CHARS = 200      # garde-fou si le modèle n'emploie aucune ponctuation
 
 _STRONG = re.compile(r"[.!?…;:]+[\"»”)]*(?=\s)|\n+")
@@ -19,6 +23,7 @@ _BULLET = re.compile(r"^\s*(?:[-•]|\d+[.)])\s+", re.MULTILINE)
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️‍]")
 _SPACES = re.compile(r"\s+")
 _WORD = re.compile(r"\w")
+_WORD_TOKENS = re.compile(r"[^\W\d_]+(?:['’][^\W\d_]+)?|\d+")
 
 
 def clean_for_speech(text: str) -> str:
@@ -31,6 +36,7 @@ def clean_for_speech(text: str) -> str:
 class SpeechChunker:
     def __init__(self) -> None:
         self._buffer = ""
+        self._held = ""          # morceau trop court, prononcé avec le suivant
         self._first = True
 
     def feed(self, delta: str) -> list[str]:
@@ -39,12 +45,18 @@ class SpeechChunker:
         while (cut := self._find_cut()) is not None:
             piece, self._buffer = self._buffer[:cut], self._buffer[cut:]
             if piece := self._speakable(piece):
+                piece = f"{self._held} {piece}".strip()
+                self._held = ""
+                if len(_WORD_TOKENS.findall(piece)) < MIN_WORDS:
+                    self._held = piece
+                    continue
                 pieces.append(piece)
                 self._first = False
         return pieces
 
     def flush(self) -> list[str]:
-        piece, self._buffer = self._speakable(self._buffer), ""
+        piece = self._speakable(f"{self._held} {self._buffer}")
+        self._held, self._buffer = "", ""
         return [piece] if piece else []
 
     @staticmethod

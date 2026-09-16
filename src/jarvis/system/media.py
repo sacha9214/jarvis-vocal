@@ -15,7 +15,8 @@ ACTIONS = ("play", "pause", "next", "previous")
 _MAC_PLAYERS = ("Spotify", "Music")
 _MAC_COMMANDS = {"play": "play", "pause": "pause", "next": "next track", "previous": "previous track"}
 _WINDOWS_KEYS = {"play": 0xB3, "pause": 0xB3, "next": 0xB0, "previous": 0xB1}
-_SPOKEN = {"play": "Lecture.", "pause": "Pause.", "next": "Morceau suivant.", "previous": "Morceau précédent."}
+_SPOKEN = {"play": "Je relance la musique.", "pause": "Je mets en pause.", "next": "Je passe au morceau suivant.",
+           "previous": "Je reviens au morceau précédent."}
 
 
 def press_key(code: int, times: int = 1) -> None:

@@ -409,6 +409,24 @@ src/jarvis/
   server.py   serveur local (127.0.0.1, jeton de session)
 ```
 
+## Optimisations essayées et écartées
+
+Mesurées sur un MacBook Air M3, pour qu'elles ne soient pas retentées à l'aveugle :
+
+| Idée | Résultat mesuré |
+|---|---|
+| Analyser l'audio tous les 40 ms au lieu de 80 pour mieux entendre le mot d'activation | Détection **effondrée** : 73 → 23 % dans le bruit. Le classifieur ne voit plus la durée du mot |
+| Faire tourner le mot d'activation sur le Neural Engine (CoreML) | **1,5 fois plus lent** : les modèles sont petits et découpés en 5 partitions, les allers-retours coûtent plus que le calcul |
+| Ignorer les trames silencieuses avant le modèle | 3 détections perdues sur 25, pour 5 à 13 % de calcul économisé. Le modèle a besoin d'un flux continu |
+| Nourrir le modèle par blocs de 80 ms au lieu de 32 | Aucun gain mesurable (7,3 → 7,8 %, dans le bruit de mesure) |
+| Réduire la fenêtre de contexte du modèle local | Ne libère que 50 Mo : 4,07 Go à 4 096 tokens contre 4,12 Go à 8 192 |
+| Quantifier la voix Pocket TTS | **Pire des deux côtés** : 2,0 Go au lieu de 1,7, et deux fois plus lente à générer |
+| Forcer le mode hors ligne de HuggingFace au démarrage | Aucun gain (3 455 contre 3 660 ms, dans le bruit) |
+
+Ce qui reste pour alléger vraiment relève du compromis, pas de l'optimisation : la voix Piper à la
+place de Pocket TTS libère 1,7 Go avec un rendu moins humain, et `qwen3.5:2b` à la place de `4b`
+libère environ 2 Go avec des réponses moins fines. Les deux se changent dans les réglages.
+
 ## Limites connues
 
 - **16 Go de mémoire, c'est juste** : LLM (~4,8 Go), Whisper, voix naturelle (~1,6 Go) et tes

@@ -16,7 +16,8 @@ def system_prompt(user_name: str, today: date, tools: bool = False) -> str:
         "contrôler la musique, lancer des minuteurs, piloter les vidéos et les pages du navigateur, lire et piloter "
         "l'application ouverte…). Quand la demande est une action, appelle l'outil directement, sans demander la "
         "permission : Jarvis demande lui-même confirmation pour les actions sensibles. Pour un élément ou un contenu "
-        "que tu ne connais pas encore, lis d'abord la page (browser_read) ou l'application (app_read).\n"
+        "que tu ne connais pas encore, lis d'abord la page (browser_read), l'application (app_read) ou le code de "
+        "l'éditeur (code_read, code_errors).\n"
         if tools else "")
     return (
         f"Tu es Jarvis, l'assistant vocal personnel de {who}. Tu t'adresses directement à {who} "

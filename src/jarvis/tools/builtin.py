@@ -164,6 +164,8 @@ def _desktop_call(action) -> str:
       "titre, texte visible et liste numérotée des boutons, menus, onglets et champs. À utiliser pour résumer, "
       "relire ou expliquer ce qui est affiché, et avant app_press.", context="app,code", speaks=False)
 def app_read() -> str:
+    if EDITOR is not None and EDITOR.linked():      # VS Code : l'accessibilité ne voit rien, l'extension si
+        return code_read("file")
     return _desktop_call(lambda desktop: desktop.read())
 
 
@@ -321,3 +323,110 @@ def browser_close_tab() -> str:
 def browser_type(text: str, submit: bool = False) -> str:
     result = _browser().call("type", {"text": text, "submit": submit})
     return "C'est tapé." if result.get("typed") else result.get("error") or "Je n'ai pas pu taper."
+
+
+# -- éditeur de code (extension VS Code de Jarvis)
+
+EDITOR = None   # EditorController branché au démarrage (jarvis.app)
+CODE_COMMANDS = ["save", "save_all", "format", "organize_imports", "comment", "undo", "redo", "select_all", "find",
+                 "replace", "rename", "quick_fix", "definition", "references", "symbol", "back", "forward",
+                 "next_error", "previous_error", "fold", "unfold", "word_wrap", "terminal", "clear_terminal",
+                 "problems", "explorer", "source_control", "search_view", "sidebar", "zen", "palette", "quick_open",
+                 "split", "new_file", "close_tab", "next_tab", "previous_tab", "reopen_tab"]
+_CODE_SENTENCES = {
+    "save": "Fichier enregistré.", "save_all": "Tout est enregistré.", "format": "Fichier formaté.",
+    "organize_imports": "Imports rangés.", "comment": "Ligne commentée.", "undo": "Annulé.", "redo": "Rétabli.",
+    "terminal": "Terminal.", "problems": "Voici les problèmes.", "close_tab": "Onglet fermé.",
+    "next_tab": "Onglet suivant.", "previous_tab": "Onglet précédent.", "reopen_tab": "Onglet rouvert.",
+    "definition": "Je vais à la définition.", "back": "Je reviens en arrière.", "next_error": "Erreur suivante.",
+    "previous_error": "Erreur précédente.", "zen": "Mode zen.", "split": "Éditeur divisé.",
+}
+
+
+def _editor():
+    if EDITOR is None or not EDITOR.linked():
+        raise RuntimeError("aucun éditeur n'est relié à Jarvis : installe l'extension VS Code avec `jarvis code`")
+    return EDITOR
+
+
+@tool("code_read", "Lit l'éditeur de code (VS Code) : what = file (le fichier ouvert autour du curseur, lignes "
+      "numérotées), selection (le texte sélectionné) ou tabs (les fichiers ouverts). À utiliser pour expliquer, "
+      "résumer ou corriger le code affiché.", {"what": {"type": "string", "enum": ["file", "selection", "tabs"]}},
+      context="code", speaks=False)
+def code_read(what: str = "file") -> str:
+    result = _editor().call("read", {"what": what})
+    if what == "tabs":
+        tabs = result.get("tabs") or []
+        return "Fichiers ouverts :\n" + "\n".join(
+            f"{t['index']}. {t['label']}{' (actif)' if t.get('active') else ''}{' (modifié)' if t.get('dirty') else ''}"
+            for t in tabs) if tabs else "Aucun fichier ouvert dans l'éditeur."
+    if what == "selection":
+        if not result.get("text"):
+            return f"Rien n'est sélectionné dans {result.get('name')}."
+        return f"Sélection dans {result.get('name')}, lignes {result['from']} à {result['to']} :\n{result['text']}"
+    window = ("" if result.get("from") == 1 and result.get("to") == result.get("total_lines")
+              else f", lignes {result.get('from')} à {result.get('to')} sur {result.get('total_lines')}")
+    lines = [f"Fichier : {result.get('name')} ({result.get('language')}), curseur ligne {result.get('line')}{window}"]
+    if result.get("selection"):
+        lines.append(f"Texte sélectionné : {result['selection']}")
+    lines.append(result.get("text") or "(fichier vide)")
+    return "\n".join(lines)
+
+
+@tool("code_errors", "Erreurs et avertissements affichés par l'éditeur (linter, compilateur) : scope file (le "
+      "fichier ouvert) ou project (tous les fichiers).", {"scope": {"type": "string", "enum": ["file", "project"]}},
+      context="code", speaks=False)
+def code_errors(scope: str = "file") -> str:
+    result = _editor().call("errors", {"scope": scope})
+    items = result.get("items") or []
+    if not items:
+        where = "dans le fichier ouvert" if scope == "file" else "dans le projet"
+        return f"Aucune erreur ni avertissement {where}."
+    head = f"{result.get('errors', 0)} erreur(s), {result.get('warnings', 0)} avertissement(s) :"
+    return head + "\n" + "\n".join(
+        f"- {item['file']}:{item['line']} [{item['severity']}{' ' + item['source'] if item.get('source') else ''}] "
+        f"{item['message']}" for item in items)
+
+
+@tool("code_open", "Dans l'éditeur : ouvre un fichier du projet par son nom (file, ex. pipeline.py), va à une "
+      "ligne (line) du fichier ouvert, ou passe à un onglet (tab, numéro donné par code_read tabs).",
+      {"file": {"type": "string"}, "line": {"type": "integer"}, "tab": {"type": "integer"}}, context="code")
+def code_open(file: str = "", line: int | None = None, tab: int | None = None) -> str:
+    if not file and not line and not tab:
+        return "Dis-moi quel fichier ouvrir, ou quelle ligne."
+    result = _editor().call("open", {"file": file, "line": line, "tab": tab})
+    if file or tab:
+        return f"J'ouvre {result.get('name')}" + (f", ligne {result.get('line')}." if line else ".")
+    return f"Ligne {result.get('line')}."
+
+
+@tool("code_command", "Action dans l'éditeur de code : " + ", ".join(CODE_COMMANDS) + ".",
+      {"action": {"type": "string", "enum": CODE_COMMANDS}}, ("action",), context="code")
+def code_command(action: str) -> str:
+    _editor().call("command", {"action": action})
+    return _CODE_SENTENCES.get(action, "C'est fait.")
+
+
+@tool("code_search", "Cherche un texte dans tous les fichiers du projet (panneau de recherche de l'éditeur).",
+      {"query": {"type": "string"}}, ("query",), context="code")
+def code_search(query: str) -> str:
+    _editor().call("search", {"query": query})
+    return f"Je cherche {query} dans le projet."
+
+
+@tool("code_insert", "Écrit du texte dans le fichier ouvert : mode cursor (au curseur), replace (à la place de la "
+      "sélection) ou line (nouvelle ligne sous le curseur).",
+      {"text": {"type": "string"}, "mode": {"type": "string", "enum": ["cursor", "replace", "line"]}}, ("text",),
+      level=N2, confirm=lambda a: f"J'écris « {str(a.get('text', ''))[:80]} » dans le fichier ?", context="code")
+def code_insert(text: str, mode: str = "cursor") -> str:
+    result = _editor().call("insert", {"text": text, "mode": mode})
+    return f"C'est écrit dans {result.get('name')}."
+
+
+@tool("code_run", "Dans l'éditeur : lance le programme (run), le débogueur (debug) ou les tests (test).",
+      {"mode": {"type": "string", "enum": ["run", "debug", "test"]}}, ("mode",), level=N2,
+      confirm=lambda a: {"debug": "Je lance le débogueur ?", "test": "Je lance les tests ?"}.get(
+          a.get("mode", ""), "Je lance le programme ?"), context="code")
+def code_run(mode: str) -> str:
+    _editor().call("run", {"mode": mode})
+    return {"debug": "Débogueur lancé.", "test": "Tests lancés."}.get(mode, "Programme lancé.")

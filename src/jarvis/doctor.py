@@ -59,6 +59,12 @@ def doctor(cfg: Config) -> int:
         line("ok" if built else "warn", "Pilotage du navigateur",
              f"extension prête (port {cfg.browser.port}), à charger dans ton navigateur" if built
              else "lance `jarvis extension`, puis charge l'extension dans ton navigateur")
+        from .editor.install import find_editors
+        editors = [name for name, _ in find_editors()]
+        vsix = any((models_dir().parent / "editor").glob("*.vsix"))
+        line("ok" if vsix else "warn", "Pilotage de l'éditeur (VS Code)",
+             (f"extension prête pour {', '.join(editors)}" if editors else "extension prête, aucun éditeur trouvé")
+             if vsix else "lance `jarvis code` pour l'installer dans " + (", ".join(editors) or "ton éditeur"))
 
     if IS_MAC:
         try:

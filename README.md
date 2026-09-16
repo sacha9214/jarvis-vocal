@@ -54,6 +54,8 @@ sans ralentir Whisper ni le LLM sur le GPU.
 | « lance la deuxième vidéo », « clique sur Paramètres » | clic dans la page | N1 |
 | « cherche des tutos Python sur YouTube », « ferme l'onglet » | recherche, onglets | N1 / N2 |
 | « résume ce document », « clique sur Envoyer », « enregistre le fichier » | lit et pilote l'application ouverte | N1 / N2 |
+| « c'est quoi cette erreur ? », « explique cette fonction », « va à la ligne 42 » | lit et pilote VS Code (extension) | N1 |
+| « écris un commentaire ici », « lance les tests » | écrit dans le fichier, exécute | N2 |
 | « fais une review de mon code », « relis mes changements avec Claude » | review en arrière-plan | N1 |
 | « qu'est-ce que tu vois ? », « c'est quoi cette erreur ? » | regarde l'écran et répond | N1 |
 | « donne-moi l'état de l'ordinateur » | batterie, processeur, mémoire | N1 |
@@ -106,6 +108,33 @@ l'Explorateur, les Réglages, ton éditeur — par l'**accessibilité du systèm
   refuse aussi un « Oui » dans une fenêtre qui parle de supprimer. Taper du texte et envoyer un raccourci
   demandent confirmation (N2).
 - « Contrôle S » devient **Cmd+S** sur Mac : c'est ce que veut dire quelqu'un qui vient de Windows.
+
+## Éditeur de code (VS Code)
+
+VS Code dessine son éditeur dans un canvas et **n'expose rien à l'accessibilité** (mesuré : 12 éléments,
+0 caractère, même avec `editor.accessibilitySupport`). Jarvis passe donc par une **extension VS Code**,
+sur le modèle de celle du navigateur : `uv run jarvis code` l'empaquette (VSIX, sans Node ni vsce) et
+l'installe dans VS Code, Cursor, Windsurf ou VSCodium ; « Jarvis » apparaît dans la barre d'état.
+
+| Tu dis | Ce que fait Jarvis |
+|---|---|
+| « explique ce fichier », « résume ce que j'ai sélectionné » | lit le fichier autour du curseur (lignes numérotées), la sélection, les onglets |
+| « c'est quoi cette erreur ? », « il reste des problèmes ? » | lit les diagnostics (linter, compilateur) du fichier ou du projet |
+| « ouvre pipeline point py », « va à la ligne 42 », « passe au deuxième onglet » | ouvre, saute, change d'onglet |
+| « enregistre », « formate le fichier », « commente la ligne », « va à la définition » | ~40 commandes sûres de l'éditeur |
+| « cherche foreground dans le projet » | recherche dans tous les fichiers |
+| « écris `pass` ici », « lance les tests » | écrit au curseur / à la place de la sélection, exécute (N2 : confirmation) |
+
+- Les gestes courants (enregistrer, formater, aller à la ligne, ouvrir un fichier, onglets, tests) sont
+  reconnus **sans LLM**.
+- La **review** utilise le vrai fichier ouvert et le vrai dossier du projet donnés par l'extension,
+  plus besoin de deviner d'après le titre de la fenêtre.
+- **Sécurité** : même pont local que le navigateur (127.0.0.1, port 47831, jeton propre à ta machine),
+  route `/editor` réservée aux clients **sans en-tête Origin** : un navigateur en envoie toujours un,
+  une page web ne peut donc pas se faire passer pour l'éditeur. L'extension n'embarque aucun secret, elle
+  lit le jeton sur le disque. Pas d'identifiant de commande libre : le modèle choisit dans une liste
+  fermée, sans accès au terminal (`sendSequence`), ni push, ni suppression.
+- Mesuré dans un VS Code isolé : chaque action répond en **1 à 65 ms**.
 
 ## Review de code
 
@@ -230,6 +259,7 @@ modèles d'écoute. Les modèles d'écoute et la voix Piper sont vérifiés par 
 | `uv run jarvis` | lance l'assistant et son interface (`--ui browser` ou `--ui none` au besoin) |
 | `uv run jarvis hud` | aperçu de l'interface avec des données simulées |
 | `uv run jarvis extension` | prépare l'extension navigateur et explique comment l'ajouter |
+| `uv run jarvis code` | empaquette l'extension VS Code et l'installe dans les éditeurs trouvés |
 | `uv run jarvis setup` | télécharge les modèles adaptés à ta machine |
 | `uv run jarvis doctor` | vérifie Ollama, Claude Code, les voix, le micro et la sortie audio |
 | `uv run jarvis bench` | mesure la latence de chaque étage (`--backend claude` pour Claude) |
@@ -252,7 +282,8 @@ src/jarvis/
   tts/        Pocket TTS (voix naturelle), Piper (secours)
   llm/        Ollama, Claude Code, routeur local/Claude avec repli
   tools/      registre des actions, permissions N1/N2/N3, serveur MCP
-  browser/    extension navigateur, pont WebSocket local, Safari par AppleScript
+  browser/    extension navigateur, pont WebSocket local (navigateur et éditeur), Safari par AppleScript
+  editor/     extension VS Code (JS pur), empaquetage VSIX et installation
   review/     projet ouvert dans l'éditeur, review par Claude (lecture seule) ou par le modèle local
   desktop/    lecture et pilotage de toute application (UI Automation, accessibilité macOS)
   system/     applications, fenêtre active, volume, lecture, dossiers, alimentation (macOS + Windows)
@@ -279,6 +310,8 @@ src/jarvis/
   SQL, division par zéro, valeur par défaut mutable) sans fausse alerte, mais signale aussi un faux problème
   sur un fichier sain du projet (~7 s par fichier). Elle repère les erreurs flagrantes ; pour une vraie
   review, passe par Claude.
+- **VS Code** : la lecture du terminal n'est pas exposée par l'API des extensions (Jarvis ne lit pas la
+  sortie d'une commande) ; dans un dossier « non approuvé », VS Code bloque lui-même l'exécution.
 - **Navigateur** : les actions sont testées sur une vraie page (lecture, volume, clics, refus des
   actions sensibles) et le pont par des tests automatiques ; l'extension n'a pas encore été chargée
   dans chaque navigateur. Les pages internes (`chrome://`, boutique d'extensions) restent inaccessibles.

@@ -23,7 +23,9 @@
     browser_search: "Recherche dans le navigateur", browser_tabs: "Onglets", browser_close_tab: "Fermeture d'onglet",
     browser_type: "Saisie dans la page", review_code: "Review de code", review_control: "Suivi de la review",
     app_read: "Lecture de l'application", app_press: "Clic dans l'application", app_type: "Saisie dans l'application",
-    app_shortcut: "Raccourci clavier",
+    app_shortcut: "Raccourci clavier", code_read: "Lecture du code", code_errors: "Erreurs de l'éditeur",
+    code_open: "Ouverture dans l'éditeur", code_command: "Commande de l'éditeur", code_search: "Recherche dans le projet",
+    code_insert: "Écriture dans le fichier", code_run: "Exécution dans l'éditeur",
   };
   const MARKS = [["stt", "Transcription"], ["fastpath", "Réflexe"], ["llm_first_token", "1er token"],
                  ["first_chunk", "1re phrase"], ["tool", "Action"], ["first_audio", "1er son"]];
@@ -566,6 +568,11 @@
       case "browsers": {
         const names = event.names || [];
         logEntry("announce", `<span class="k">NAVIGATEUR</span>${names.length ? `${esc(names.join(", "))} relié à Jarvis` : "Aucun navigateur relié"}`);
+        break;
+      }
+      case "editors": {
+        const names = event.names || [];
+        logEntry("announce", `<span class="k">ÉDITEUR</span>${names.length ? `${esc(names.join(", "))} relié à Jarvis` : "Aucun éditeur relié"}`);
         break;
       }
       case "review_started":

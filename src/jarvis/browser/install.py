@@ -14,9 +14,15 @@ from ..system import IS_MAC, IS_WINDOWS
 SOURCE = Path(__file__).parent / "extension"
 
 
+TOKEN_FILE = "bridge-token"
+
+
 def token() -> str:
-    """Jeton du pont navigateur : créé une fois, partagé par Jarvis et les extensions installées."""
-    path = data_dir() / "browser-token"
+    """Jeton du pont : créé une fois, partagé par Jarvis et les extensions installées (navigateur, VS Code)."""
+    path = data_dir() / TOKEN_FILE
+    legacy = data_dir() / "browser-token"
+    if not path.exists() and legacy.exists():
+        legacy.rename(path)
     if not path.exists():
         path.write_text(secrets.token_urlsafe(32), encoding="utf-8")
         if os.name == "posix":

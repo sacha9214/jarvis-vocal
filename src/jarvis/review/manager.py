@@ -54,13 +54,14 @@ class ReviewManager:
     def __init__(self, cfg: Config, engine: Callable[[], str], window: Callable[[], Foreground | None] = lambda: None,
                  bus: EventBus | None = None, chat: engines.Chat | None = None,
                  claude: engines.ClaudeTask | None = None, reports: Path | None = None,
-                 dirs: list[Path] | None = None):
+                 dirs: list[Path] | None = None, hint: Callable[[], tuple[Path, Path | None] | None] | None = None):
         self.cfg = cfg
         self.engine = engine            # moteur actif de la conversation
         self.window = window            # dernière fenêtre d'éditeur utilisée
         self.bus = bus or EventBus()
         self.reports = reports or data_dir() / "reviews"
         self.dirs = dirs                # tests : historique d'éditeur factice
+        self.hint = hint                # extension VS Code reliée : (projet, fichier affiché) exacts
         self.announce: Callable[[str], None] = lambda text: None
         self.busy: Callable[[], bool] = lambda: False
         self.on_local_done: Callable[[], None] = lambda: None
@@ -76,7 +77,10 @@ class ReviewManager:
         with self._lock:
             if self._job is not None:
                 return f"{_capital(self._job.label)} est déjà en cours : je te préviens dès qu'elle est finie."
-            project = find_project(self.window(), target, self.dirs)
+            project = None
+            if not target and self.hint is not None and (known := self.hint()) is not None:
+                project = Project(*known)
+            project = project or find_project(self.window(), target, self.dirs)
             if project is None:
                 if target:
                     return f"Je ne trouve pas le projet {target} parmi les dossiers ouverts récemment dans ton éditeur."

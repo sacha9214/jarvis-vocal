@@ -1,0 +1,55 @@
+{
+  "name": "jarvis",
+  "displayName": "Jarvis",
+  "description": "Relie cet éditeur à Jarvis, ton assistant vocal local : il lit le fichier ouvert, la sélection et les erreurs, ouvre des fichiers et lance des commandes à la voix.",
+  "version": "1.0.0",
+  "publisher": "jarvis",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "jarvis.reconnect",
+        "title": "Jarvis : se relier à Jarvis"
+      }
+    ],
+    "configuration": {
+      "title": "Jarvis",
+      "properties": {
+        "jarvis.port": {
+          "type": "integer",
+          "default": 47831,
+          "description": "Port local du pont Jarvis (réglage browser.port de Jarvis)."
+        },
+        "jarvis.dataDir": {
+          "type": "string",
+          "default": "",
+          "description": "Dossier de données de Jarvis, où se trouve le jeton bridge-token (vide = emplacement par défaut)."
+        }
+      }
+    }
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Dans un dossier non approuvé, Jarvis lit le code mais VS Code bloque l'exécution du programme et des tests."
+    },
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "Les fichiers distants se lisent, la recherche peut être limitée."
+    }
+  }
+}

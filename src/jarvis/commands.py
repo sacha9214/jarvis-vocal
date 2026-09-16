@@ -266,6 +266,54 @@ def _app(plain: str, soft: str) -> Command | None:
     return None
 
 
+_EXTENSIONS = (r"py|js|jsx|ts|tsx|mjs|json|md|html|css|scss|yaml|yml|toml|txt|rs|go|java|kt|swift|c|h|cpp|hpp|cs|rb"
+               r"|php|sh|sql|lua|gd|dart|vue|svelte")
+
+
+def _code(plain: str, soft: str) -> Command | None:
+    """Dans l'éditeur de code relié (extension VS Code) : sans LLM pour les gestes courants."""
+    if re.fullmatch(r"(?:formate|formatte|reformate|indente)(?: le| ce)?(?: fichier| code| document)?", plain):
+        return Command("code_command", {"action": "format"})
+    if match := re.fullmatch(r"(?:va|vas|aller|saute) (?:a |à )?la ligne (?P<n>[0-9 ]+)", plain):
+        if line := parse_number(match["n"]):
+            return Command("code_open", {"line": int(line)})
+    if match := re.fullmatch(rf"ouvre (?:le fichier |le module )?(?P<f>[a-z0-9_ -]+?)(?: point | )(?P<e>{_EXTENSIONS})",
+                             plain):
+        return Command("code_open", {"file": f"{_span(soft, match, 'f')}.{match['e']}"})
+    if re.fullmatch(r"(?:ouvre|montre|affiche|cache|ferme|masque)(?: le)? terminal", plain):
+        return Command("code_command", {"action": "terminal"})
+    if re.fullmatch(r"(?:montre|affiche|ouvre)(?: moi)? (?:les problemes|les erreurs|le panneau des problemes)", plain):
+        return Command("code_command", {"action": "problems"})
+    if re.fullmatch(r"(?:erreur|probleme) suivante?|(?:va a|passe a) l erreur suivante", plain):
+        return Command("code_command", {"action": "next_error"})
+    if re.fullmatch(r"commente (?:la|cette) ligne|(?:de)?commente (?:la selection|ca)", plain):
+        return Command("code_command", {"action": "comment"})
+    if re.fullmatch(r"ferme (?:l onglet|cet onglet|le fichier|ce fichier)", plain):
+        return Command("code_command", {"action": "close_tab"})
+    if re.fullmatch(r"(?:onglet|fichier) suivant|change de fichier|passe au fichier suivant", plain):
+        return Command("code_command", {"action": "next_tab"})
+    if re.fullmatch(r"(?:onglet|fichier) precedent", plain):
+        return Command("code_command", {"action": "previous_tab"})
+    if re.fullmatch(r"(?:annule|annuler)(?: la derniere modification| ca)?", plain):
+        return Command("code_command", {"action": "undo"})
+    if re.fullmatch(r"(?:va a|montre|ouvre) la definition", plain):
+        return Command("code_command", {"action": "definition"})
+    if re.fullmatch(r"(?:enregistre|sauvegarde|sauve) tout", plain):
+        return Command("code_command", {"action": "save_all"})
+    if re.fullmatch(r"(?:enregistre|sauvegarde|sauve)(?: le fichier| le document| mon travail)?", plain):
+        return Command("code_command", {"action": "save"})
+    if match := re.fullmatch(r"(?:cherche|recherche|trouve) (?P<q>.+?) dans (?:le projet|le code|les fichiers"
+                             r"|tout le projet)", plain):
+        return Command("code_search", {"query": _span(soft, match, "q")})
+    if re.fullmatch(r"lance (?:les )?tests|(?:execute|lance) la suite de tests", plain):
+        return Command("code_run", {"mode": "test"})
+    if re.fullmatch(r"lance (?:le )?(?:debug|debogueur|debugger)", plain):
+        return Command("code_run", {"mode": "debug"})
+    if re.fullmatch(r"(?:lance|execute) (?:le programme|le script|le projet|le code|le fichier)", plain):
+        return Command("code_run", {"mode": "run"})
+    return None
+
+
 _ORDINALS = {
     "premier": 1, "premiere": 1, "1er": 1, "1re": 1, "1ere": 1, "deuxieme": 2, "second": 2, "seconde": 2, "2e": 2,
     "2eme": 2, "troisieme": 3, "3e": 3, "3eme": 3, "quatrieme": 4, "4e": 4, "4eme": 4, "cinquieme": 5, "5e": 5,
@@ -355,6 +403,7 @@ def _browser(plain: str, soft: str) -> Command | None:
 
 _RULES = (_power, _browser, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
 _APP_RULES = (_power, _app, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
+_CODE_RULES = (_power, _code, _app, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
 
 
 def parse(text: str, context: str = "") -> Command | None:
@@ -367,7 +416,7 @@ def parse(text: str, context: str = "") -> Command | None:
     plain, soft = plain.strip(), soft.strip()
     if not plain:
         return None
-    for rule in _APP_RULES if context in ("app", "code") else _RULES:
+    for rule in _CODE_RULES if context == "code" else _APP_RULES if context == "app" else _RULES:
         if command := rule(plain, soft):
             return command
     return None

@@ -116,7 +116,7 @@ def test_extension_folders_carry_port_and_token(tmp_path, monkeypatch):
     assert firefox["background"]["scripts"][0] == "config.js"
     assert (folders["firefox"] / "actions.js").exists()
     if os.name == "posix":
-        assert oct((tmp_path / "browser-token").stat().st_mode)[-3:] == "600"
+        assert oct((tmp_path / "bridge-token").stat().st_mode)[-3:] == "600"
 
 
 def test_safari_script_embeds_the_shared_actions():

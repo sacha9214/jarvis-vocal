@@ -102,4 +102,4 @@ def test_an_unknown_action_is_refused(extension):
 def test_the_token_file_is_readable_only_by_you(tmp_path, monkeypatch):
     monkeypatch.setenv("JARVIS_HOME", str(tmp_path))
     install.build(47831, tmp_path / "extension")
-    assert oct((tmp_path / "browser-token").stat().st_mode)[-3:] == "600"
+    assert oct((tmp_path / "bridge-token").stat().st_mode)[-3:] == "600"

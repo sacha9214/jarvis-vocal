@@ -48,15 +48,16 @@ class FakeLocalLLM:
         self.warmups = 0
         self.gate = threading.Event()
 
-    def warmup(self, system):
+    def warmup(self, system, tools=None):
         self.warmups += 1
+        self.tools = tools
         self.gate.wait(1)
 
 
-def make_assistant(llm):
+def make_assistant(llm, context=""):
     cfg = Config()
     parts = SimpleNamespace(vad=object(), executor=ToolExecutor(cfg.tools), screen=None, review=None, llm=llm,
-                            foreground=None, tts=None, wakeword=None, stt=None)
+                            foreground=SimpleNamespace(context=lambda: context), tts=None, wakeword=None, stt=None)
     assistant = Assistant(cfg, parts, mic=SimpleNamespace(dropped=0), player=SimpleNamespace(stop=lambda: None),
                           bus=EventBus())
     assistant._system = "prompt système"
@@ -66,6 +67,7 @@ def make_assistant(llm):
 def test_the_cache_is_rewarmed_once_at_wake_not_after_every_screen_analysis():
     llm = FakeLocalLLM()
     assistant = make_assistant(llm)
+    assistant._warm_context = ""                              # le démarrage a chauffé le prompt sans contexte
     assistant._prewarm()
     assert llm.warmups == 0                                   # rien d'évincé : rien à rechauffer
     for _ in range(3):
@@ -90,3 +92,18 @@ def test_a_failed_announcement_does_not_block_the_caller():
     assistant.announce("minuteur fini")
     assert assistant._tick(__import__("numpy").zeros(512, "float32"), iter([])) is True
     assert assistant._requests.empty()                        # la demande a été consommée malgré l'erreur
+
+
+def test_wake_warms_the_tools_of_the_current_context():
+    llm = FakeLocalLLM()
+    llm.gate.set()
+    assistant = make_assistant(llm, context="code")
+    assistant._warm_context = ""                              # démarrage : outils sans contexte dans le cache
+    assistant._prewarm()                                      # réveil dans l'éditeur : autre liste d'outils
+    time.sleep(0.05)
+    assert llm.warmups == 1
+    assert "code_read" in {t["function"]["name"] for t in llm.tools}
+    assert "browser_media" not in {t["function"]["name"] for t in llm.tools}
+    assistant._prewarm()
+    time.sleep(0.05)
+    assert llm.warmups == 1                                   # même contexte : le cache est déjà bon

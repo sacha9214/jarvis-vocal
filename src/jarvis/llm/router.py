@@ -54,9 +54,11 @@ class Router:
             LOG.warning("%s indisponible (%s) : démarrage sur %s.", _label(self.active), exc, _label(self.fallback))
             self.active = self.fallback
 
-    def warmup(self, system_prompt: str) -> None:
+    def warmup(self, system_prompt: str, tools: list[dict[str, Any]] | None = None) -> None:
+        """Pré-remplit le cache avec le prompt système et les outils donnés (ceux du contexte où la question
+        va tomber : mesuré, une liste différente coûte ~1,5 s de préremplissage à la question suivante)."""
         self._system = system_prompt
-        self.backends[self.active].warmup(system_prompt, self.tools)
+        self.backends[self.active].warmup(system_prompt, self.tools if tools is None else tools)
 
     def describe(self) -> str:
         if self.active == CLAUDE:

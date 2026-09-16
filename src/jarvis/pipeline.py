@@ -121,6 +121,7 @@ class Assistant:
         self._decision: str | None = None
         self._decided = threading.Event()
         self._cache_stale = False           # l'analyse d'écran ou la review a évincé la conversation d'Ollama
+        self._warm_context: str | None = None   # contexte d'outils dont le cache d'Ollama contient le prompt
         self._warming = threading.Lock()
         parts.executor.confirm = self._confirm
         parts.executor.on_result = self._on_tool_result
@@ -273,7 +274,9 @@ class Assistant:
             speaker.say(piece)
 
         executor = self.parts.executor
-        tools = executor.schemas(self._context()) if self.cfg.tools.enabled else None
+        context = self._context() if self.cfg.tools.enabled else ""
+        tools = executor.schemas(context) if self.cfg.tools.enabled else None
+        self._warm_context = context        # la réponse laisse ce prompt-là dans le cache
         conversation = list(messages)
         try:
             for _ in range(_MAX_TOOL_ROUNDS):
@@ -435,15 +438,21 @@ class Assistant:
         self._cache_stale = True
 
     def _prewarm(self) -> None:
-        if not self._cache_stale or self.parts.llm.active != "local" or not self._system:
+        """Au réveil : chauffe le cache avec le prompt et les outils du contexte courant, pendant que la
+        phrase est prononcée. Mesuré : avec une autre liste d'outils, la question paie ~1,5 s de plus."""
+        context = self._context() if self.cfg.tools.enabled else ""
+        if self.parts.llm.active != "local" or (not self._cache_stale and context == self._warm_context):
             return
         if not self._warming.acquire(blocking=False):
             return                      # une rechauffe est déjà en cours
         self._cache_stale = False
+        self._warm_context = context
+        system = self._system_prompt()
+        tools = self.parts.executor.schemas(context) if self.cfg.tools.enabled else None
 
         def warm() -> None:
             try:
-                self.parts.llm.warmup(self._system)
+                self.parts.llm.warmup(system, tools)
             except Exception as exc:  # noqa: BLE001 - la question suivante paiera simplement le prompt
                 LOG.debug("Rechauffe impossible : %s", exc)
             finally:
@@ -463,12 +472,15 @@ class Assistant:
         except Exception:  # noqa: BLE001 - diagnostic seulement
             pass
 
-    def _messages(self, text: str) -> list[Message]:
+    def _system_prompt(self) -> str:
         key = (date.today(), self.cfg.user_name, self.cfg.tools.enabled)
         if key != self._system_key:
             self._system = prompts.system_prompt(self.cfg.user_name, key[0], tools=self.cfg.tools.enabled)
             self._system_key = key
-        messages: list[Message] = [{"role": "system", "content": self._system}, *self.history]
+        return self._system
+
+    def _messages(self, text: str) -> list[Message]:
+        messages: list[Message] = [{"role": "system", "content": self._system_prompt()}, *self.history]
         # Contexte écran juste avant la question : le début du prompt reste identique (cache KV).
         if self.parts.screen is not None and (context := self.parts.screen.context()):
             messages.append({"role": "system", "content": context})

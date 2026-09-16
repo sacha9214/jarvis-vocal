@@ -304,6 +304,10 @@ src/jarvis/
   suivant (mesuré : 1,6 à 2,3 s de GPU à chaque rechauffe, inutile si personne ne parle).
 - **Fenêtre de contexte** : mesuré, le prompt fait déjà 2 936 tokens à vide en contexte éditeur
   (27 outils) ; `llm.num_ctx` est donc à 8 192. En dessous, Ollama tronque le prompt sans prévenir.
+  Le cache d'Ollama n'est valable que pour une liste d'outils donnée : Jarvis chauffe donc, au
+  « Hey Jarvis », le prompt avec les outils du contexte où tu es (navigateur, éditeur, application).
+  Mesuré : 1,5 s de préremplissage évitée par question dans ces contextes (0,02 s au lieu de 1,51 s).
+  `jarvis bench` mesure sans outils : la vraie question avec outils coûte le même prix grâce au cache.
 - **En cas de plantage** : tout est dans `logs/jarvis.log` du dossier de données (`jarvis doctor`
   affiche le chemin) ; un plantage natif (MLX, torch, PortAudio) laisse sa pile dans `logs/crash.log`.
   Une ligne « 💾 » par conversation donne mémoire, swap, trames micro perdues et nombre de fils.

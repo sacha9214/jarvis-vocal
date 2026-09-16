@@ -14,8 +14,8 @@ from jarvis.config import ClaudeConfig, Config
 from jarvis.events import EventBus
 from jarvis.llm.claude_code import ClaudeCodeLLM
 from jarvis.review import collect, engines
-from jarvis.review.manager import ReviewManager
-from jarvis.review.project import find_project, jetbrains_projects, recent, title_parts, uri_path
+from jarvis.review.manager import Job, ReviewManager
+from jarvis.review.project import Project, find_project, jetbrains_projects, recent, title_parts, uri_path
 from jarvis.system.foreground import Foreground
 
 FAKE = Path(__file__).parent / "fake_claude.py"
@@ -160,6 +160,16 @@ def test_local_review_reads_in_passes_then_merges(tmp_path):
     report, note = engines.local_review(material, lambda system, content, tokens: "RAS", max_chars=30, size=60)
     assert report == engines.NOTHING_FOUND
     assert "relu 1 sur 2" in note
+
+
+def test_a_review_says_its_name_out_loud(tmp_path):
+    def label(scope, files):
+        return Job(Project(tmp_path / "jarvis-vocal"), collect.Material(scope, tmp_path, files), "local").label
+
+    assert label("file", [tmp_path / "engines.py"]) == "la review d'engines.py"
+    assert label("file", [tmp_path / "pipeline.py"]) == "la review de pipeline.py"
+    assert label("changes", []) == "la review de tes changements dans jarvis-vocal"
+    assert label("project", []) == "la review du projet jarvis-vocal"
 
 
 def test_summary_falls_back_to_the_first_sentences():

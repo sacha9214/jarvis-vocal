@@ -35,7 +35,8 @@ class Job:
     @property
     def label(self) -> str:
         if self.material.scope == "file" and self.material.files:
-            return f"la review de {self.material.files[0].name}"
+            name = self.material.files[0].name       # dit à voix haute : « d'engines.py », pas « de engines.py »
+            return f"la review d'{name}" if name[:1].lower() in "aeiouyéèêh" else f"la review de {name}"
         if self.material.scope == "changes":
             return f"la review de tes changements dans {self.project.name}"
         return f"la review du projet {self.project.name}"

@@ -93,6 +93,9 @@ _TAIL = re.compile(r"(?: (?:s il te plait|s il vous plait|stp|merci|jarvis|maint
 _OPEN_VERBS = (r"(?:ouvre|ouvrir|lance|lancer|demarre|demarrer|allume|allumer|mets|mettre|va sur|aller sur"
                r"|affiche|afficher)")
 _COMPUTER = r"(?:l ordinateur|le pc|le mac|l ordi|la machine)"
+_POWER_VERBS = {"eteins": "shutdown", "eteint": "shutdown", "eteindre": "shutdown", "arrete": "shutdown",
+                "redemarre": "restart", "redemarrer": "restart", "mets": "sleep", "mettre": "sleep",
+                "passe": "sleep"}
 _VOLUME = r"(?:le son|le volume|son|volume)"
 
 
@@ -105,12 +108,23 @@ def _power(plain: str, soft: str) -> Command | None:
         return Command("cancel_power")
     if re.fullmatch(r"(?:annule|arrete|stoppe|supprime) (?:le|les|mon|mes) minuteurs?", plain):
         return Command("cancel_timer")
+    # « éteins l'ordinateur dans 25 minutes », « redémarre le pc dans une heure »
+    if match := re.fullmatch(rf"(?P<verb>eteins|eteint|eteindre|arrete|redemarre|redemarrer|mets|mettre|passe) "
+                             rf"(?:{_COMPUTER} )?(?P<sleep>en veille )?dans (?P<d>.+)", plain):
+        if (seconds := parse_duration(match["d"])) and (action := _POWER_VERBS.get(match["verb"])):
+            if action == "sleep" and not match["sleep"]:
+                action = None
+            if action:
+                return Command("power", {"action": action, "seconds": seconds})
     if re.fullmatch(rf"(?:eteins|eteint|eteindre|arrete) {_COMPUTER}", plain):
         return Command("power", {"action": "shutdown"})
     if re.fullmatch(rf"(?:redemarre|redemarrer) {_COMPUTER}", plain):
         return Command("power", {"action": "restart"})
     if re.fullmatch(rf"(?:mets|mettre|passe) (?:{_COMPUTER} )?en veille", plain):
         return Command("power", {"action": "sleep"})
+    if re.fullmatch(r"(?:c est quand|dans combien de temps|il reste combien de temps (?:avant|pour))"
+                    r"(?: l extinction| le redemarrage| l arret| la veille)?", plain):
+        return Command("system_status")
     if re.fullmatch(rf"verrouille (?:{_COMPUTER}|l ecran|la session)", plain):
         return Command("lock_screen")
     return None

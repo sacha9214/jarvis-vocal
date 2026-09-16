@@ -76,8 +76,12 @@ sans ralentir Whisper ni le LLM sur le GPU.
 | « qu'est-ce que tu vois ? », « c'est quoi cette erreur ? » | regarde l'écran et répond | N1 |
 | « donne-moi l'état de l'ordinateur » | batterie, processeur, mémoire | N1 |
 | « ferme Discord », « verrouille l'écran » | fermeture, verrouillage | N2 |
-| « éteins l'ordinateur », « redémarre le PC » | extinction après 20 s, « annule l'extinction » | N3 |
+| « éteins l'ordinateur dans 25 minutes », « redémarre le PC » | extinction différée, annulable à tout moment | N3 |
 
+- **Extinction différée** : « éteins l'ordinateur dans 25 minutes », « redémarre le pc dans une heure »,
+  « mets l'ordinateur en veille dans 20 minutes ». Jarvis confirme, annonce l'heure, **prévient une
+  minute avant**, et « annule l'extinction » arrête tout. « Il reste combien de temps ? » donne le compte
+  à rebours. Sans délai, il attend 20 secondes, le temps de te raviser.
 - **N1** agit tout de suite. **N2** demande « Tu confirmes ? » : réponds « oui », « non » ou
   « toujours » pour ne plus être interrogé. **N3** demande à chaque fois, sans exception.
 - La confirmation se donne **à la voix ou d'un clic** dans l'interface.

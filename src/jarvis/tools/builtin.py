@@ -81,9 +81,13 @@ def cancel_timer() -> str:
     return TIMERS.cancel_all()
 
 
-@tool("system_status", "Donne l'état de l'ordinateur : batterie, processeur, mémoire.")
+@tool("system_status", "Donne l'état de l'ordinateur : batterie, processeur, mémoire, et l'extinction "
+      "ou le redémarrage programmés s'il y en a un.")
 def system_status() -> str:
-    return status.sentence()
+    sentence = status.sentence()
+    if POWER.pending() is not None:
+        sentence += " " + POWER.status()
+    return sentence
 
 
 @tool("close_app", "Ferme une application ouverte.", {"name": {"type": "string"}}, ("name",),
@@ -98,11 +102,20 @@ def lock_screen() -> str:
     return "J'ai verrouillé l'écran."
 
 
-@tool("power", "Éteint, redémarre ou met en veille l'ordinateur, après un délai annulable.",
-      {"action": {"type": "string", "enum": ["shutdown", "restart", "sleep"]}}, ("action",), level=N3,
-      confirm=lambda a: f"Tu confirmes {power.SPOKEN.get(a.get('action', ''), 'cette action')} de l'ordinateur ?")
-def power_action(action: str) -> str:
-    return POWER.schedule(action, POWER_DELAY_S)
+def _power_question(arguments: dict) -> str:
+    what = power.SPOKEN.get(arguments.get("action", ""), "cette action")
+    seconds = arguments.get("seconds")
+    when = f" dans {timers.spoken_duration(seconds)}" if seconds else ""
+    return f"Tu confirmes {what} de l'ordinateur{when} ?"
+
+
+@tool("power", "Éteint, redémarre ou met en veille l'ordinateur. seconds : dans combien de temps "
+      "(ex. 1500 pour vingt-cinq minutes) ; sans rien, tout de suite après un court délai pour annuler.",
+      {"action": {"type": "string", "enum": ["shutdown", "restart", "sleep"]},
+       "seconds": {"type": "integer", "description": "délai avant l'action, en secondes"}},
+      ("action",), level=N3, confirm=_power_question)
+def power_action(action: str, seconds: int | None = None) -> str:
+    return POWER.schedule(action, seconds if seconds and seconds > 0 else POWER_DELAY_S)
 
 
 @tool("cancel_power", "Annule une extinction, un redémarrage ou une mise en veille programmés.")

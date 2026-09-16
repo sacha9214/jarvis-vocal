@@ -8,6 +8,17 @@ from pathlib import Path
 APP = "jarvis"
 
 
+STORE_PYTHON_HINT = ("Python du Microsoft Store : ce qu'il écrit dans AppData\\Local part dans un dossier virtuel "
+                     "que VS Code et les navigateurs ne voient pas. Lance `uv python install 3.12` puis "
+                     "`uv sync --reinstall`.")
+
+
+def store_python() -> bool:
+    """Python installé depuis le Microsoft Store (exécutable sous WindowsApps ou paquet PythonSoftwareFoundation)."""
+    executable = (sys.executable or "").lower() + (getattr(sys, "_base_executable", "") or "").lower()
+    return sys.platform == "win32" and ("windowsapps" in executable or "pythonsoftwarefoundation" in executable)
+
+
 def data_dir() -> Path:
     override = os.environ.get("JARVIS_HOME")
     if override:

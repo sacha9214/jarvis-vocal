@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from ..paths import data_dir
+from ..paths import STORE_PYTHON_HINT, data_dir, store_python
 from ..system import IS_MAC, IS_WINDOWS
 
 SOURCE = Path(__file__).parent / "extension"
@@ -47,6 +47,9 @@ def build(port: int, root: Path | None = None) -> dict[str, Path]:
 
 
 def run(port: int) -> int:
+    if store_python():
+        print(f"❌ {STORE_PYTHON_HINT}")
+        return 1
     folders = build(port)
     print("Extension Jarvis prête.\n")
     print("Chrome, Edge, Brave, Opera ou Arc :")

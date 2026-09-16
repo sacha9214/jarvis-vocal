@@ -7,7 +7,7 @@ import sys
 
 import httpx
 
-from . import assets, hardware
+from . import assets, hardware, paths
 from .config import Config
 from .paths import models_dir
 from .system import IS_MAC, IS_WINDOWS
@@ -26,6 +26,8 @@ def doctor(cfg: Config) -> int:
     hw = hardware.detect()
     line("ok", "Matériel", f"{hw} → {hardware.recommend(hw).reason}")
     line("ok" if sys.version_info >= (3, 12) else "fail", "Python", platform.python_version())
+    if paths.store_python():
+        line("fail", "Python du Store", paths.STORE_PYTHON_HINT)
 
     from .llm import load_backend
     engines = (("ollama", f"LLM local (Ollama {cfg.llm.model})"),

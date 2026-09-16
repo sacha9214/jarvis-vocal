@@ -12,7 +12,7 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-from ..paths import data_dir
+from ..paths import STORE_PYTHON_HINT, data_dir, store_python
 from ..system import IS_MAC, IS_WINDOWS, NO_WINDOW
 
 SOURCE = Path(__file__).parent / "extension"
@@ -121,6 +121,9 @@ def install(vsix: Path, command: str) -> str | None:
 
 
 def run() -> int:
+    if store_python():
+        print(f"❌ {STORE_PYTHON_HINT}")
+        return 1
     vsix = build()
     print(f"Extension VS Code de Jarvis empaquetée : {vsix}\n")
     editors = find_editors()

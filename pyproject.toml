@@ -41,6 +41,11 @@ jarvis = "jarvis.__main__:main"
 requires = ["uv_build>=0.12.15,<0.13.0"]
 build-backend = "uv_build"
 
+[tool.uv]
+# Toujours un Python géré par uv : celui du Microsoft Store redirige les écritures dans AppData\Local vers un
+# dossier virtuel invisible des autres programmes (VS Code ne trouve pas le VSIX, l'extension pas le jeton).
+python-preference = "only-managed"
+
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",

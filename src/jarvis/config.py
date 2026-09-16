@@ -144,6 +144,7 @@ class Config:
     audio: AudioConfig = field(default_factory=AudioConfig)
     ui: UiConfig = field(default_factory=UiConfig)
     commands: list[dict[str, Any]] = field(default_factory=list)   # commandes personnalisées (voir jarvis.custom)
+    automations: list[dict[str, Any]] = field(default_factory=list)  # automatisations (voir jarvis.automations)
 
     def resolve(self, hw: hardware.Hardware | None = None) -> Config:
         """Remplace les « auto » par le plan recommandé pour ce matériel."""

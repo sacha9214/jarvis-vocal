@@ -1,6 +1,8 @@
 """Outils intégrés, macOS et Windows."""
 from __future__ import annotations
 
+from .. import automations as automations_module
+from ..automations import Automations
 from ..memory import Memory
 from ..system import (
     apps,
@@ -649,3 +651,26 @@ def memory_tool(action: str, text: str = "") -> str:
     if action == "forget_all":
         return MEMORY.forget_all()
     return MEMORY.recite()
+
+
+# -- automatisations : ce que Jarvis fait tout seul, à une heure ou sur un événement
+
+AUTOMATIONS = Automations()
+
+
+@tool("automations", "Automatisations : create (programmer, text = la phrase entière, par ex. « tous les jours à "
+      "8 heures, rappelle-moi de prendre mes médicaments » ou « quand j'ouvre Spotify, mets le volume à 40 »), "
+      "list (les réciter), remove (supprimer celle qui ressemble à text), clear (tout supprimer).",
+      {"action": {"type": "string", "enum": ["create", "list", "remove", "clear"]}, "text": {"type": "string"}},
+      ("action",))
+def automations_tool(action: str, text: str = "") -> str:
+    if action == "create":
+        from datetime import datetime
+
+        automation, error = automations_module.from_voice(text, datetime.now())
+        return AUTOMATIONS.add(automation) if automation else error
+    if action == "remove":
+        return AUTOMATIONS.remove(text) if text else "Dis-moi laquelle supprimer."
+    if action == "clear":
+        return AUTOMATIONS.clear()
+    return AUTOMATIONS.recite()

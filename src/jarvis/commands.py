@@ -418,6 +418,19 @@ def _browser(plain: str, soft: str) -> Command | None:
     return None
 
 
+def _automations(plain: str, soft: str) -> Command | None:
+    if re.fullmatch(r"(?:quelles sont|liste|montre moi|dis moi|c est quoi) (?:mes )?(?:automatisations|rappels"
+                    r"|routines|taches programmees)|qu est ce que (?:tu as|j ai) programme", plain):
+        return Command("automations", {"action": "list"})
+    if re.fullmatch(r"(?:supprime|efface|annule|enleve) (?:toutes )?(?:mes|les) (?:automatisations|rappels|routines)",
+                    plain):
+        return Command("automations", {"action": "clear"})
+    if match := re.fullmatch(r"(?:supprime|efface|annule|enleve) (?:l automatisation|le rappel|la routine)"
+                             r"(?: de| du| des| d| pour)? (?P<t>.+)", plain):
+        return Command("automations", {"action": "remove", "text": _span(soft, match, "t")})
+    return None
+
+
 def _memory(plain: str, soft: str) -> Command | None:
     """« retiens que… », « oublie que… », « qu'est-ce que tu sais sur moi ? » : jamais confondu avec autre chose."""
     if match := re.fullmatch(r"(?:retiens|souviens toi|rappelle toi|n oublie pas|note|memorise|enregistre)"
@@ -523,11 +536,11 @@ def _machine(plain: str, soft: str) -> Command | None:
     return None
 
 
-_RULES = (_memory, _power, _browser, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
+_RULES = (_memory, _automations, _power, _browser, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
           _folder, _open)
-_APP_RULES = (_memory, _power, _app, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
+_APP_RULES = (_memory, _automations, _power, _app, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
               _folder, _open)
-_CODE_RULES = (_memory, _power, _code, _app, _volume, _media, _timer, _machine, _search, _review, _screen,
+_CODE_RULES = (_memory, _automations, _power, _code, _app, _volume, _media, _timer, _machine, _search, _review, _screen,
                _close, _folder, _open)
 
 
@@ -543,6 +556,9 @@ def parse(text: str, context: str = "") -> Command | None:
     """`context` : « browser », « code », « app » ou « » (inconnu : les règles du navigateur s'appliquent)."""
     if match := _REMEMBER.match(text.strip()):
         return Command("memory", {"action": "remember", "text": match["t"].strip()})
+    from .automations import is_automation_request
+    if is_automation_request(text):
+        return Command("automations", {"action": "create", "text": text.strip()})
     plain, soft = _aligned(text)
     if lead := _LEAD.match(plain):
         plain, soft = plain[lead.end():], soft[lead.end():]

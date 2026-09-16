@@ -63,6 +63,15 @@ def doctor(cfg: Config) -> int:
         line("ok" if is_local_host(host) else "warn", "Analyse d'écran",
              f"toutes les {cfg.screen.interval_s:g} s au plus, modèle {cfg.screen.model or cfg.llm.model} sur "
              + ("cette machine" if is_local_host(host) else f"{host} : tes captures partent sur le réseau"))
+    from .automations import Automations
+    try:
+        checker = Automations(path=models_dir().parent / "automations.json")
+        checker.load_config(cfg.automations)
+        spoken = [a for a in checker.all() if a.source == "voice"]
+        line("ok", "Automatisations", f"{len(cfg.automations)} dans config.yaml, {len(spoken)} créées à la voix"
+             if cfg.automations or spoken else "aucune (« tous les jours à 8 heures, rappelle-moi de… »)")
+    except ValueError as exc:
+        line("fail", "Automatisations", str(exc))
     from .custom import load_commands
     try:
         customs = load_commands(cfg)

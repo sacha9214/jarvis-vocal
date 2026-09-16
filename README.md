@@ -124,6 +124,42 @@ Ensuite, « comment s'appelle ma sœur ? » répond « Léa », sans que tu le r
 - Quarante souvenirs au plus, le plus ancien laisse la place. Tout est dans `memory.json` du dossier de
   données, lisible et modifiable ; un fichier abîmé est mis de côté, jamais écrasé.
 
+## Automatisations
+
+Jarvis agit tout seul, à une heure ou quand quelque chose se passe :
+
+| Tu dis | Effet |
+|---|---|
+| « tous les jours à 8 heures, rappelle-moi de prendre mes médicaments » | rappel quotidien |
+| « chaque lundi à 9 heures, dis-moi de faire le point » | rappel hebdomadaire |
+| « en semaine à 18 heures 30, ferme Discord » | commande du lundi au vendredi |
+| « demain à 7 heures, rappelle-moi d'appeler le garage » | une seule fois |
+| « ce soir à 8 heures, rappelle-moi d'appeler maman » | 20 h, une seule fois |
+| « quand j'ouvre Spotify, mets le volume à 40 » | à l'ouverture d'une application |
+| « quelles sont mes automatisations ? » | il les récite |
+| « supprime le rappel des médicaments » | retire la plus proche |
+
+- L'action est soit un rappel (« rappelle-moi de… », « dis-moi de… »), soit **n'importe quelle commande
+  que Jarvis comprend**, jouée comme si tu l'avais dite. Ce qu'il ne comprendrait pas est refusé dès la
+  création, pas découvert à 8 heures du matin.
+- Les **actions sensibles gardent leur confirmation** : programmer « éteins l'ordinateur » ne l'éteindra
+  pas sans ton oui.
+- Reconnu sans LLM, **avec ou sans virgule** : Whisper ne la transcrit pas toujours, Jarvis cherche alors
+  où finit « quand » et où commence « quoi ».
+- Ordinateur en veille à l'heure dite : rattrapé jusqu'à dix minutes après, abandonné au-delà. Jamais
+  deux fois pour la même occurrence, même après un redémarrage.
+- Événements de la machine dans `config.yaml` (`jarvis doctor` les valide) :
+
+```yaml
+automations:
+  - name: batterie
+    when: {event: battery_low}          # aussi startup, power_plugged, power_unplugged, app_opened
+    say: "La batterie est presque vide, branche le chargeur."
+  - name: coucher
+    when: {time: "23:00", days: [lundi, mardi, mercredi, jeudi, vendredi]}
+    do: "mets l'ordinateur en veille"
+```
+
 ## Contrôle de la machine
 
 Au-delà des applications et du son, Jarvis touche à l'ordinateur lui-même. Tout marche sur **macOS et

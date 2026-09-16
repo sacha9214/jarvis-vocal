@@ -135,6 +135,9 @@ class Assistant:
             # L'analyse d'écran attend que la conversation soit finie : elle ne ralentit jamais une réponse.
             parts.screen.busy = lambda: self._current_state != "sleeping"
             parts.screen.on_observation = self._on_screen
+        automations = getattr(parts, "automations", None)
+        if automations is not None:
+            automations.run_action = self._run_automation
         if parts.review is not None:
             parts.review.announce = self.announce
             parts.review.busy = lambda: self._current_state != "sleeping"
@@ -171,6 +174,8 @@ class Assistant:
         self._state("sleeping")
         if self.parts.screen is not None:
             self.parts.screen.start()
+        if getattr(self.parts, "automations", None) is not None:
+            self.parts.automations.start()      # après le branchement de run_action : « au démarrage » part ici
         LOG.info("À l'écoute : dis « Hey Jarvis ». %s", self.parts.llm.describe())
         for frame in frames:
             if self._tick(frame, frames):
@@ -474,6 +479,22 @@ class Assistant:
             finally:
                 self._warming.release()
         threading.Thread(target=warm, name="rechauffe", daemon=True).start()
+
+    def _run_automation(self, automation) -> None:
+        """Appelé par le fil des automatisations. Les actions sensibles gardent leur confirmation."""
+        if automation.say:
+            self.announce(automation.say)
+            return
+        command = commands.parse(automation.do, self._context())
+        if command is None:
+            self.announce(f"Je n'ai pas pu faire « {automation.do} » : je ne comprends plus cette commande.")
+            return
+
+        def act() -> None:
+            result = self.parts.executor.run(command.tool, command.arguments)
+            if self.parts.executor.speaks(command.tool) and result:
+                self.announce(result)
+        threading.Thread(target=act, name="automatisation", daemon=True).start()
 
     def _near_miss(self, wakeword) -> None:
         """« Presque » : le mot a été reconnu à moitié. Le dire aide à régler la sensibilité au lieu de

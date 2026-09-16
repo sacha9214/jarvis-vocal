@@ -94,6 +94,7 @@ class ForegroundTracker:
         self._lock = threading.Lock()
         self._history: deque[Foreground] = deque(maxlen=20)   # applications distinctes, la plus récente à droite
         self._stopped = threading.Event()
+        self.on_switch: Callable[[str], None] | None = None     # une autre application vient de passer devant
 
     def start(self) -> ForegroundTracker:
         threading.Thread(target=self._run, name="premier-plan", daemon=True).start()
@@ -110,12 +111,19 @@ class ForegroundTracker:
         current = self._probe()
         if current is None or current.pid == os.getpid():     # la fenêtre de Jarvis ne compte pas
             return
+        switched = False
         with self._lock:
             if self._history and self._history[-1].app == current.app:
                 self._history[-1] = current
             else:
+                switched = bool(self._history)          # pas au tout premier relevé : rien n'a « changé »
                 self._history = deque([f for f in self._history if f.app != current.app], maxlen=20)
                 self._history.append(current)
+        if switched and self.on_switch is not None:
+            try:
+                self.on_switch(current.app)
+            except Exception:  # noqa: BLE001 - une automatisation ratée ne doit pas arrêter le suivi
+                LOG.exception("Réaction au changement d'application en échec")
 
     def last(self) -> Foreground | None:
         with self._lock:

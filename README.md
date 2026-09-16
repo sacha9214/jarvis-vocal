@@ -335,6 +335,9 @@ plusieurs formulations) face à cinq minutes de parole française et de bruit.
 | Réveils intempestifs (5 min de parole et de bruit) | 0 | 0 |
 
 - **Dire simplement « Jarvis » suffit** : le modèle le reconnaît aussi bien.
+- **Raccourci clavier Ctrl+Alt+J** (réglable, ou vide pour aucun) : réveille Jarvis sans parler, et le
+  coupe s'il parle. Windows l'enregistre sans autorisation ; macOS demande « Surveillance de l'entrée »
+  au premier lancement. Un raccourci déjà pris par une autre application est signalé.
 - Quand Jarvis reconnaît le mot à moitié, il l'écrit dans le journal et dans l'interface
   (« j'ai cru entendre… score 0,18 ») : de quoi régler la sensibilité au lieu de répéter dans le vide.
 - **Le volume n'entre pas en jeu** : mesuré, le score est identique de 0 à −30 dB. Parler plus fort ne
@@ -485,7 +488,8 @@ commands:
 
 | À la voix | Effet |
 |---|---|
-| « Hey Jarvis » | réveille Jarvis, ou lui coupe la parole |
+| « Hey Jarvis » (ou juste « Jarvis ») | réveille Jarvis, ou lui coupe la parole |
+| **Ctrl+Alt+J**, depuis n'importe quelle application | pareil, sans parler |
 | « passe sur Claude » / « passe en local » | change de moteur |
 | « quel modèle tu utilises ? » | dit le moteur actif |
 | « quelle heure est-il ? », « on est quel jour ? » | réponse instantanée |

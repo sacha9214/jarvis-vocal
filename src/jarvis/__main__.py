@@ -104,10 +104,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("devices", help="liste les périphériques audio")
     args = parser.parse_args(argv)
 
-    logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
-                        format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
-    for noisy in ("httpx", "httpcore", "huggingface_hub", "mcp", "uvicorn"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
+    from . import logs
+    log_path = logs.setup(args.verbose)
 
     try:
         cfg = config_module.load(Path(args.config) if args.config else None)
@@ -150,7 +148,8 @@ def main(argv: list[str] | None = None) -> int:
         print("\nÀ plus.")
         return 0
     except (RuntimeError, ValueError) as exc:
-        print(f"❌ {exc}", file=sys.stderr)
+        LOG.error("%s", exc)
+        print(f"❌ {exc}\n   Journal : {log_path}", file=sys.stderr)
         return 1
 
 

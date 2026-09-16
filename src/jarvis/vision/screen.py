@@ -1,6 +1,6 @@
 """Contexte écran : ce que l'utilisateur est en train de faire, observé en continu.
 
-Toutes les ~20 s, et seulement si l'écran a changé, une capture réduite est décrite en une
+Toutes les ~45 s, et seulement si l'écran a changé, une capture réduite est décrite en une
 phrase par le modèle de vision LOCAL (Ollama). La capture reste en mémoire : jamais écrite
 sur disque, jamais envoyée ailleurs. Seule la phrase sert de contexte, y compris pour Claude.
 Pendant une conversation, l'analyse se met en pause pour ne pas ralentir les réponses.
@@ -51,13 +51,31 @@ class Observation:
     at: float
 
 
+def pick_monitor(monitors: list[dict]) -> dict:
+    """L'écran principal ; sans écran utilisable (session verrouillée, Mac en veille), une erreur claire
+    plutôt qu'un IndexError."""
+    usable = [m for m in monitors[1:] or monitors if m.get("width", 0) > 0 and m.get("height", 0) > 0]
+    if not usable:
+        raise RuntimeError("aucun écran capturable pour le moment (session verrouillée ou écran en veille)")
+    return usable[0]
+
+
+def memory_pressure(min_free_gb: float) -> bool:
+    """Vrai quand la mémoire libre passe sous le seuil : analyser l'écran ferait swapper."""
+    try:
+        import psutil
+        return psutil.virtual_memory().available < min_free_gb * 1e9
+    except Exception:  # noqa: BLE001 - psutil absent ou en échec : on ne bloque pas
+        return False
+
+
 def capture(max_width: int) -> tuple[bytes, np.ndarray]:
     """Écran principal réduit à `max_width`, en PNG, et son empreinte 18×32 en niveaux de gris."""
     import mss
     import mss.tools
 
     with mss.mss() as grabber:
-        shot = grabber.grab(grabber.monitors[1])
+        shot = grabber.grab(pick_monitor(grabber.monitors))
     pixels = np.frombuffer(shot.bgra, dtype=np.uint8).reshape(shot.height, shot.width, 4)
     step = max(1, int(np.ceil(shot.width / max_width)))
     small = np.ascontiguousarray(pixels[::step, ::step, 2::-1])          # BGRA → RGB, sous-échantillonné
@@ -113,13 +131,16 @@ class ScreenWatcher:
                  on_observation: Callable[[Observation], None] | None = None,
                  busy: Callable[[], bool] = lambda: False,
                  grab: Callable[[int], tuple[bytes, np.ndarray]] = capture,
-                 front: Callable[[], str] = frontmost_app):
+                 front: Callable[[], str] = frontmost_app,
+                 pressure: Callable[[float], bool] = memory_pressure):
         self.cfg = cfg
         self.describe = describe
         self.on_observation = on_observation
         self.busy = busy
         self.grab = grab
         self.front = front
+        self.pressure = pressure
+        self._paused = False
         self.latest: Observation | None = None
         self._fingerprint: np.ndarray | None = None
         self._lock = threading.Lock()
@@ -146,6 +167,12 @@ class ScreenWatcher:
                 return
             if not self.cfg.enabled or self.busy():
                 continue
+            if self.pressure(self.cfg.min_free_gb):
+                if not self._paused:
+                    LOG.info("Analyse d'écran en pause : moins de %.1f Go de mémoire libre.", self.cfg.min_free_gb)
+                self._paused = True
+                continue
+            self._paused = False
             try:
                 self.observe()
                 self._failures = 0

@@ -43,7 +43,21 @@ class MlxWhisper:
 
     def transcribe(self, audio: np.ndarray) -> str:
         audio = prepare_audio(audio)
-        text = self._decode(audio, self.prompt)
-        if self.prompt and suspicious(text, self.prompt):
-            text = self._decode(audio, None)    # second essai sans amorce
+        try:
+            text = self._decode(audio, self.prompt)
+            if self.prompt and suspicious(text, self.prompt):
+                text = self._decode(audio, None)    # second essai sans amorce
+        finally:
+            self._release()
         return "" if is_repetitive(text) else text
+
+    @staticmethod
+    def _release() -> None:
+        """Rend au système les tampons Metal gardés en réserve par MLX (des centaines de Mo entre deux phrases)."""
+        try:
+            import mlx.core as mx
+            clear = getattr(mx, "clear_cache", None) or getattr(getattr(mx, "metal", None), "clear_cache", None)
+            if clear:
+                clear()
+        except Exception:  # noqa: BLE001 - confort mémoire, jamais bloquant
+            pass

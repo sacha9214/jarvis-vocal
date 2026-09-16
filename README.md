@@ -298,7 +298,15 @@ src/jarvis/
 
 - **16 Go de mémoire, c'est juste** : LLM (~4,8 Go), Whisper, voix naturelle (~1,6 Go) et tes
   applications se partagent la mémoire. Si le Mac swappe, tout ralentit : ferme les applications
-  lourdes, ou prends `qwen3.5:2b-mlx` et la voix Piper dans les réglages.
+  lourdes, ou prends `qwen3.5:2b-mlx` et la voix Piper dans les réglages. Garde-fous : l'analyse
+  d'écran attend quand il reste moins de 1,5 Go libres (`screen.min_free_gb`), Whisper rend ses
+  tampons Metal après chaque phrase, et le cache du modèle n'est rechauffé qu'au « Hey Jarvis »
+  suivant (mesuré : 1,6 à 2,3 s de GPU à chaque rechauffe, inutile si personne ne parle).
+- **Fenêtre de contexte** : mesuré, le prompt fait déjà 2 936 tokens à vide en contexte éditeur
+  (27 outils) ; `llm.num_ctx` est donc à 8 192. En dessous, Ollama tronque le prompt sans prévenir.
+- **En cas de plantage** : tout est dans `logs/jarvis.log` du dossier de données (`jarvis doctor`
+  affiche le chemin) ; un plantage natif (MLX, torch, PortAudio) laisse sa pile dans `logs/crash.log`.
+  Une ligne « 💾 » par conversation donne mémoire, swap, trames micro perdues et nombre de fils.
 - **Pas d'annulation d'écho** : sans casque, le micro entend Jarvis. Un garde-fou ignore
   ce qu'il vient de dire et la coupure passe par « Hey Jarvis ».
 - **Windows** : validé par la CI (installation, lint, tests) mais pas encore sur une vraie

@@ -71,6 +71,8 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
               help="Seulement si l'écran a changé, et jamais pendant une conversation."),
         Field("screen.max_width", "Précision de la capture", "slider", min=640, max=1600, step=64, unit="px",
               help="Plus large : texte mieux lu, analyse plus lente."),
+        Field("screen.min_free_gb", "Mémoire libre minimale", "slider", min=0, max=4, step=0.5, unit="Go",
+              help="En dessous, l'analyse attend : elle ferait swapper la machine. 0 pour ne jamais attendre."),
     ]),
     ("voice", "Voix", "Comment Jarvis te parle.", [
         Field("tts.backend", "Moteur de voix", "select", live=False, options=(

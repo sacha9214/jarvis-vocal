@@ -23,6 +23,8 @@ def doctor(cfg: Config) -> int:
         failures += status == "fail"
         print(f"{_SYMBOLS[status]} {label}" + (f" — {detail}" if detail else ""))
 
+    from .logs import logs_dir
+    line("ok", "Journal", f"{logs_dir() / 'jarvis.log'} (crash.log à côté en cas de plantage natif)")
     hw = hardware.detect()
     line("ok", "Matériel", f"{hw} → {hardware.recommend(hw).reason}")
     line("ok" if sys.version_info >= (3, 12) else "fail", "Python", platform.python_version())

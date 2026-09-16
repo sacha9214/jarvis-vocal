@@ -40,7 +40,7 @@ class LlmConfig:
     backend: str = "ollama"        # moteur au démarrage : ollama (local) | claude
     model: str = "auto"            # modèle Ollama
     host: str = "http://127.0.0.1:11434"
-    num_ctx: int = 4096            # contexte court = pré-remplissage rapide et moins de mémoire
+    num_ctx: int = 8192            # mesuré : outils + prompt = 2 900 tokens en contexte éditeur, 4 096 débordait
     max_tokens: int = 320
     temperature: float = 0.6
     keep_alive: str = "30m"        # le modèle reste chargé entre deux questions
@@ -68,7 +68,8 @@ class ToolsConfig:
 @dataclass
 class ScreenConfig:
     enabled: bool = True           # analyse de l'écran en continu, par le modèle de vision local
-    interval_s: float = 20.0       # une analyse au plus toutes les N secondes, et seulement si l'écran a changé
+    interval_s: float = 45.0       # une analyse au plus toutes les N secondes, et seulement si l'écran a changé
+    min_free_gb: float = 1.5       # en dessous de cette mémoire libre, l'analyse attend (le Mac swappe sinon)
     max_width: int = 1024          # largeur de la capture envoyée au modèle (plus petit = plus rapide)
     model: str = ""                # vide = le modèle Ollama principal (il doit gérer les images)
 

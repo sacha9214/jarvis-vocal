@@ -120,6 +120,8 @@ class Assistant:
         self._frame_count = 0
         self._decision: str | None = None
         self._decided = threading.Event()
+        self._cache_stale = False           # l'analyse d'écran ou la review a évincé la conversation d'Ollama
+        self._warming = threading.Lock()
         parts.executor.confirm = self._confirm
         parts.executor.on_result = self._on_tool_result
         TIMERS.announce = self.announce
@@ -168,10 +170,17 @@ class Assistant:
                 self.manual_wake.clear()
                 self._stop_requested.clear()
                 wakeword.reset()
-                self._conversation(frames)
+                self._prewarm()
+                try:
+                    self._conversation(frames)
+                except Exception:  # noqa: BLE001 - une conversation ratée ne doit jamais tuer l'écoute
+                    LOG.exception("Conversation interrompue par une erreur")
+                    self.bus.publish("error", text="Erreur pendant la conversation, détail dans le journal.")
+                    self.player.stop()
                 wakeword.reset()
                 self._stop_requested.clear()
                 self._state("sleeping")
+                self._health()
                 LOG.info("En veille.")
 
     def _conversation(self, frames: Iterator[np.ndarray]) -> None:
@@ -381,12 +390,16 @@ class Assistant:
                 request = self._requests.get_nowait()
             except queue.Empty:
                 return True
-            if request.kind == "say":
-                self.bus.publish("announce", text=request.text)
-                self._say(frames, request.text)
-            else:
-                request.answer = self._ask(frames, request.text, request.allow_always)
-            request.done.set()
+            try:
+                if request.kind == "say":
+                    self.bus.publish("announce", text=request.text)
+                    self._say(frames, request.text)
+                else:
+                    request.answer = self._ask(frames, request.text, request.allow_always)
+            except Exception:  # noqa: BLE001 - voix ou micro en échec : on répond « non » et on continue
+                LOG.exception("Demande d'un autre fil en échec (%s)", request.kind)
+            finally:
+                request.done.set()
 
     # -- divers
 
@@ -416,11 +429,39 @@ class Assistant:
         self._rewarm()
 
     def _rewarm(self) -> None:
-        # L'analyse d'écran ou la review vient de remplacer la conversation dans le cache d'Ollama : on la
-        # rechauffe tout de suite, sinon la prochaine question paierait tout le prompt (~2 s de plus).
-        if self.parts.llm.active == "local" and self._system:
-            threading.Thread(target=self.parts.llm.warmup, args=(self._system,), name="rechauffe",
-                             daemon=True).start()
+        # L'analyse d'écran ou la review vient de remplacer la conversation dans le cache d'Ollama. On ne
+        # rechauffe pas tout de suite (mesuré : 1,6 à 2,3 s de GPU à chaque fois, pour rien si personne ne
+        # parle) mais au prochain « Hey Jarvis », pendant que la phrase est prononcée.
+        self._cache_stale = True
+
+    def _prewarm(self) -> None:
+        if not self._cache_stale or self.parts.llm.active != "local" or not self._system:
+            return
+        if not self._warming.acquire(blocking=False):
+            return                      # une rechauffe est déjà en cours
+        self._cache_stale = False
+
+        def warm() -> None:
+            try:
+                self.parts.llm.warmup(self._system)
+            except Exception as exc:  # noqa: BLE001 - la question suivante paiera simplement le prompt
+                LOG.debug("Rechauffe impossible : %s", exc)
+            finally:
+                self._warming.release()
+        threading.Thread(target=warm, name="rechauffe", daemon=True).start()
+
+    def _health(self) -> None:
+        """Une ligne de journal par conversation : ce qu'il faut pour comprendre un ralentissement ou un plantage."""
+        try:
+            import psutil
+            memory = psutil.virtual_memory()
+            swap = psutil.swap_memory()
+            rss = psutil.Process().memory_info().rss
+            LOG.info("💾 Jarvis %.1f Go, libre %.1f Go, swap %.1f Go, trames micro perdues %d, fils %d",
+                     rss / 1e9, memory.available / 1e9, swap.used / 1e9, getattr(self.mic, "dropped", 0),
+                     threading.active_count())
+        except Exception:  # noqa: BLE001 - diagnostic seulement
+            pass
 
     def _messages(self, text: str) -> list[Message]:
         key = (date.today(), self.cfg.user_name, self.cfg.tools.enabled)

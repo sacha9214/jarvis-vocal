@@ -1,4 +1,7 @@
+import time
+
 import numpy as np
+import pytest
 
 from jarvis.config import ScreenConfig
 from jarvis.vision.screen import ScreenWatcher, describe_prompt
@@ -69,3 +72,30 @@ def test_look_forwards_the_question():
     watcher.look()
     assert "C'est quoi cette erreur ?" in screen.prompts[0]
     assert screen.prompts[1] == describe_prompt("Visual Studio Code")
+
+
+def test_a_missing_or_asleep_monitor_gives_a_clear_error():
+    from jarvis.vision.screen import pick_monitor
+
+    assert pick_monitor([{"width": 3000, "height": 2000}, {"left": 0, "top": 0, "width": 1440, "height": 900}]) == \
+        {"left": 0, "top": 0, "width": 1440, "height": 900}
+    with pytest.raises(RuntimeError, match="verrouillée ou écran en veille"):
+        pick_monitor([{"left": 0, "top": 0, "width": 0, "height": 0}])      # Mac en veille : ce que mss renvoie
+    with pytest.raises(RuntimeError):
+        pick_monitor([])
+
+
+def test_the_watcher_waits_while_memory_is_short(monkeypatch):
+    screen = FakeScreen()
+    short = {"value": True}
+    watcher = ScreenWatcher(ScreenConfig(interval_s=0.01), screen.describe, grab=screen.grab,
+                            front=lambda: screen.app, pressure=lambda gb: short["value"])
+    watcher.start()
+    time.sleep(0.1)
+    assert screen.prompts == []                    # pas une seule analyse tant que la mémoire manque
+    short["value"] = False
+    deadline = time.monotonic() + 2
+    while not screen.prompts and time.monotonic() < deadline:
+        time.sleep(0.01)
+    watcher.stop()
+    assert len(screen.prompts) >= 1

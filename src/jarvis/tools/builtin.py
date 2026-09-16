@@ -400,7 +400,8 @@ def code_open(file: str = "", line: int | None = None, tab: int | None = None) -
     return f"Ligne {result.get('line')}."
 
 
-@tool("code_command", "Action dans l'éditeur de code : " + ", ".join(CODE_COMMANDS) + ".",
+@tool("code_command", "Action dans l'éditeur de code (enregistrer, formater, commenter, terminal, problèmes, "
+      "onglets, navigation…) : action = son nom.",
       {"action": {"type": "string", "enum": CODE_COMMANDS}}, ("action",), context="code")
 def code_command(action: str) -> str:
     _editor().call("command", {"action": action})

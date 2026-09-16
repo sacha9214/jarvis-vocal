@@ -63,6 +63,14 @@ def doctor(cfg: Config) -> int:
         line("ok" if is_local_host(host) else "warn", "Analyse d'écran",
              f"toutes les {cfg.screen.interval_s:g} s au plus, modèle {cfg.screen.model or cfg.llm.model} sur "
              + ("cette machine" if is_local_host(host) else f"{host} : tes captures partent sur le réseau"))
+    from .system.hotkey import parse as parse_hotkey
+    if cfg.ui.hotkey:
+        try:
+            parse_hotkey(cfg.ui.hotkey)
+            line("ok", "Raccourci clavier", f"{cfg.ui.hotkey} réveille Jarvis" + (
+                " (macOS demandera « Surveillance de l'entrée » au premier lancement)" if IS_MAC else ""))
+        except ValueError as exc:
+            line("fail", "Raccourci clavier", str(exc))
     from .automations import Automations
     try:
         checker = Automations(path=models_dir().parent / "automations.json")

@@ -47,6 +47,9 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
               help="Nombre d'échanges récents que Jarvis garde en tête."),
         Field("ui.window", "Affichage de l'interface", "select", live=False,
               options=(("app", "Fenêtre Jarvis"), ("browser", "Navigateur"), ("none", "Aucune"))),
+        Field("ui.hotkey", "Raccourci pour réveiller Jarvis", "text", live=False,
+              help="Réveille Jarvis sans parler, depuis n'importe quelle application ; pendant qu'il parle, "
+                   "le coupe comme « Hey Jarvis ». Ex. ctrl+alt+j. Vide pour aucun raccourci."),
     ]),
     ("listening", "Écoute", "Réactivité et sensibilité du micro.", [
         Field("wakeword.threshold", "Sensibilité de « Hey Jarvis »", "slider", min=0.15, max=0.9, step=0.05,

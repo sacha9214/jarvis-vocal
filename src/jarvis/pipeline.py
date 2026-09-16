@@ -352,7 +352,8 @@ class Assistant:
                 cancel.set()
                 self.player.stop()
                 return False
-            if wakeword.process(to_int16(frame)) >= wakeword.threshold:
+            if self.manual_wake.is_set() or wakeword.process(to_int16(frame)) >= wakeword.threshold:
+                self.manual_wake.clear()        # raccourci clavier ou bouton : comme « Hey Jarvis »
                 cancel.set()
                 self.player.stop()
                 wakeword.reset()

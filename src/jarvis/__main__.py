@@ -42,6 +42,14 @@ def _run(cfg: config_module.Config) -> int:
                     Player(cfg.audio.output_device, parts.tts.sample_rate) as player:
                 assistant = Assistant(cfg, parts, mic, player, bus)
                 controller.attach(parts, assistant)
+                if cfg.ui.hotkey:
+                    from .system.hotkey import Hotkey
+                    try:
+                        shortcut = Hotkey(cfg.ui.hotkey, assistant.wake).start()
+                        if shortcut.error:
+                            bus.publish("error", text=f"Raccourci {cfg.ui.hotkey} : {shortcut.error}")
+                    except ValueError as exc:
+                        bus.publish("error", text=str(exc))
                 assistant.run()
         except Exception as exc:  # noqa: BLE001 - affiché dans l'interface et le terminal
             failure.append(exc)

@@ -126,6 +126,7 @@ class AudioConfig:
 class UiConfig:
     window: str = "app"            # app (fenêtre Jarvis) | browser | none
     port: int = 0                  # 0 = port libre choisi au démarrage
+    hotkey: str = "ctrl+alt+j"     # réveille Jarvis sans parler, depuis n'importe où ; vide = aucun raccourci
 
 
 @dataclass

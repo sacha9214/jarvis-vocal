@@ -231,14 +231,16 @@ def browser_media(action: str, value: float | None = None) -> str:
 
 
 @tool("browser_read", "Lit l'onglet actif du navigateur : titre, adresse, texte et liste numérotée des vidéos, "
-      "liens et boutons. À utiliser avant browser_open pour choisir quoi ouvrir, ou pour résumer la page.",
+      "liens, boutons et champs de saisie. À utiliser avant browser_open ou browser_type, ou pour résumer "
+      "la page.",
       context="browser", speaks=False)
 def browser_read() -> str:
     page = _browser().call("page", {"max_chars": 3500, "max_items": 30})
     lines = [f"Page : {page.get('title')} ({page.get('url')})"]
     if items := page.get("items"):
         lines.append("Éléments cliquables :")
-        lines += [f"{item['index']}. [{item['kind']}] {item['text']}" for item in items]
+        lines += [f"{item['index']}. [{item['kind']}] {item['text']}"
+                  + (f" (contient : {item['value']})" if item.get("value") else "") for item in items]
     if page.get("selection"):
         lines.append(f"Texte sélectionné : {page['selection']}")
     lines.append("Texte de la page :\n" + (page.get("text") or ""))
@@ -318,12 +320,22 @@ def browser_close_tab() -> str:
     return f"J'ai fermé {result.get('title') or 'l onglet'}."
 
 
-@tool("browser_type", "Tape du texte dans le champ sélectionné de la page, et valide si submit est vrai.",
-      {"text": {"type": "string"}, "submit": {"type": "boolean"}}, ("text",), level=N2,
-      confirm=lambda a: f"Je tape « {str(a.get('text', ''))[:60]} » dans la page ?", context="browser")
-def browser_type(text: str, submit: bool = False) -> str:
-    result = _browser().call("type", {"text": text, "submit": submit})
-    return "Voilà, c'est tapé." if result.get("typed") else result.get("error") or "Je n'ai pas pu taper."
+@tool("browser_type", "Écrit du texte dans un champ de la page : field (nom du champ, ex. Description, "
+      "Rechercher) ou index (numéro d'un champ donné par browser_read) ; sans les deux, le champ déjà "
+      "sélectionné. replace vrai remplace ce que le champ contient, sinon le texte s'ajoute à la suite. "
+      "submit vrai valide (touche Entrée).",
+      {"text": {"type": "string"}, "field": {"type": "string"}, "index": {"type": "integer"},
+       "replace": {"type": "boolean"}, "submit": {"type": "boolean"}}, ("text",), level=N2,
+      confirm=lambda a: f"J'écris « {str(a.get('text', ''))[:60]} »"
+      + (f" dans le champ {a['field']}" if a.get("field") else " dans la page") + " ?", context="browser")
+def browser_type(text: str, field: str = "", index: int | None = None, replace: bool = False,
+                 submit: bool = False) -> str:
+    result = _browser().call("type", {"text": text, "field": field, "index": index, "replace": replace,
+                                      "submit": submit})
+    if not result.get("typed"):
+        return result.get("error") or "Je n'ai pas pu écrire dans la page."
+    where = result.get("field") or field
+    return f"C'est écrit dans le champ {where}." if where else "Voilà, c'est écrit dans la page."
 
 
 # -- éditeur de code (extension VS Code de Jarvis)

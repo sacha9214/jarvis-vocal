@@ -8,12 +8,13 @@ import time
 import pytest
 from websockets.asyncio.client import connect
 
-import jarvis.tools.builtin  # noqa: F401 - enregistre les outils
+import jarvis.tools.builtin as builtin  # noqa: F401 - enregistre les outils
+from jarvis import commands
 from jarvis.browser import install, safari
 from jarvis.browser.bridge import BrowserUnavailable, start_bridge
 from jarvis.config import ToolsConfig
 from jarvis.system.foreground import Foreground, ForegroundTracker
-from jarvis.tools import ToolExecutor
+from jarvis.tools import REGISTRY, ToolExecutor
 
 
 def free_port():
@@ -164,3 +165,60 @@ def test_browser_tools_are_offered_only_in_the_browser():
     assert "open_app" in names("browser")
     assert not executor.speaks("browser_read")
     assert executor.speaks("browser_media")
+
+
+class FakeBrowserLink:
+    """Navigateur relié : retient les appels et renvoie ce qu'on lui a préparé."""
+
+    def __init__(self, answers=None):
+        self.calls = []
+        self.answers = answers or {}
+
+    def in_browser(self):
+        return True
+
+    def call(self, action, params=None):
+        self.calls.append((action, params or {}))
+        return self.answers.get(action, {})
+
+
+def test_writing_into_a_page_field_by_name_or_number(monkeypatch):
+    """Le manque signalé par Jarvis : il lisait les liens et les boutons, pas les champs, et ne pouvait
+    écrire que dans celui déjà sélectionné."""
+    link = FakeBrowserLink({"type": {"typed": True, "field": "Description"}})
+    monkeypatch.setattr(builtin, "BROWSER", link)
+    assert builtin.browser_type("Ma description", field="Description") == "C'est écrit dans le champ Description."
+    assert link.calls[-1] == ("type", {"text": "Ma description", "field": "Description", "index": None,
+                                       "replace": False, "submit": False})
+    builtin.browser_type("Mon titre", index=2, submit=True)
+    assert link.calls[-1][1]["index"] == 2 and link.calls[-1][1]["submit"] is True
+
+    link.answers["type"] = {"typed": True, "field": ""}
+    assert builtin.browser_type("bonjour") == "Voilà, c'est écrit dans la page."
+    link.answers["type"] = {"typed": False, "error": "Je ne trouve pas de champ Titre sur cette page."}
+    assert builtin.browser_type("x", field="Titre") == "Je ne trouve pas de champ Titre sur cette page."
+
+
+def test_reading_a_page_lists_fields_and_what_they_contain(monkeypatch):
+    link = FakeBrowserLink({"page": {"title": "Nouvelle vidéo", "url": "https://exemple.test/upload", "text": "…",
+                                     "items": [{"index": 1, "text": "Publier", "kind": "bouton"},
+                                               {"index": 2, "text": "Description", "kind": "champ",
+                                                "value": "déjà écrit"},
+                                               {"index": 3, "text": "Titre", "kind": "champ", "value": ""}]}})
+    monkeypatch.setattr(builtin, "BROWSER", link)
+    read = builtin.browser_read()
+    assert "2. [champ] Description (contient : déjà écrit)" in read
+    assert "3. [champ] Titre" in read and "Titre (contient" not in read
+    assert "champs de saisie" in REGISTRY["browser_read"].description
+
+
+def test_saying_write_this_in_that_field_needs_no_llm():
+    for phrase in ("écris ma description dans le champ Description",
+                   "tape ma description dans la zone Description",
+                   "mets ma description dans Description"):
+        command = commands.parse(phrase, "browser")
+        assert command.tool == "browser_type", phrase
+        assert command.arguments == {"text": "ma description", "field": "description"}, phrase
+    assert commands.parse("mets la vidéo en pause", "browser").tool == "browser_media"
+    assert REGISTRY["browser_type"].question({"text": "salut", "field": "Description"}) == \
+        "J'écris « salut » dans le champ Description ?"

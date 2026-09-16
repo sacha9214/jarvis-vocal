@@ -372,6 +372,9 @@ def _browser(plain: str, soft: str) -> Command | None:
             return Command("browser_open", {"video": rank})
     if match := re.fullmatch(r"clique sur (?P<t>.+)", plain):
         return Command("browser_open", {"text": _span(soft, match, "t")})
+    if match := re.fullmatch(r"(?:ecris|ecrit|tape|mets|saisis) (?P<x>.+?) dans "
+                             r"(?:le champ |la zone |la case )?(?P<f>.+)", plain):
+        return Command("browser_type", {"text": _span(soft, match, "x"), "field": _span(soft, match, "f")})
     if match := (re.fullmatch(r"(?:cherche|recherche|trouve)(?: moi)? (?P<q>.+?) sur youtube", plain)
                  or re.fullmatch(r"(?:mets|lance|trouve)(?: moi)? (?:une |des )?videos? (?:de |d |sur |avec )(?P<q>.+)",
                                  plain)):

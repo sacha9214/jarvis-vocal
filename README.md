@@ -83,6 +83,23 @@ de l'ordinateur), pause, avance, vitesse, vidéo suivante, choix d'une vidéo, c
 lien, défilement, onglets, recherche YouTube ou Google. Pour une demande libre (« mets la vidéo de
 cuisine »), le modèle **lit d'abord la page**, puis clique.
 
+Il **remplit aussi les formulaires**. La lecture de page numérote les champs de saisie avec leur nom et
+ce qu'ils contiennent déjà, à côté des liens et des boutons :
+
+```
+2. [champ] Titre
+3. [champ] Description (contient : ma première version)
+6. [bouton] Publier
+```
+
+- « écris ma description dans le champ Description », « tape chat mignon dans Rechercher » : reconnu
+  **sans LLM**, le champ est visé par son nom (libellé, `aria-label`, texte d'invite ou `name`).
+- Sans nom de champ, Jarvis écrit dans celui qui est sélectionné ; il peut aussi le sélectionner
+  lui-même (« clique sur Description »).
+- Par défaut le texte **s'ajoute** à ce que contient le champ ; le modèle peut demander à le remplacer.
+- Vérifié dans un vrai Firefox sur les quatre sortes de champs : `input`, `textarea`, champ à texte
+  d'invite seul, et zone `contenteditable`.
+
 | Navigateur | Comment |
 |---|---|
 | Chrome, Edge, Brave, Opera, Vivaldi, Arc | extension Jarvis : `uv run jarvis extension`, puis « Charger l'extension non empaquetée » |

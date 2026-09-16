@@ -58,15 +58,28 @@ globalThis.JarvisActions = {
       const s = getComputedStyle(el);
       return r.width > 4 && r.height > 4 && s.visibility !== "hidden" && s.display !== "none";
     };
-    const label = (el) => (el.getAttribute("aria-label") || el.getAttribute("title") || el.innerText || el.value || "")
+    const FIELDS = "input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio])"
+      + ":not([type=file]):not([type=image]):not([type=reset]), textarea, [contenteditable=true], [contenteditable=''], [role=textbox]";
+    const isField = (el) => el.matches(FIELDS);
+    const fieldLabel = (el) => {
+      const byFor = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+      const wrap = el.closest("label");
+      const described = el.getAttribute("aria-labelledby");
+      const byIds = described ? described.split(/\s+/).map((id) => document.getElementById(id)).filter(Boolean)
+        .map((n) => n.innerText).join(" ") : "";
+      return (el.getAttribute("aria-label") || byIds || (byFor && byFor.innerText) || (wrap && wrap.innerText)
+        || el.getAttribute("placeholder") || el.getAttribute("title") || el.getAttribute("name") || "").replace(/\s+/g, " ").trim().slice(0, 140);
+    };
+    const label = (el) => (isField(el) ? fieldLabel(el)
+      : (el.getAttribute("aria-label") || el.getAttribute("title") || el.innerText || el.value || ""))
       .replace(/\s+/g, " ").trim().slice(0, 140);
     const isVideo = (el) => /\/watch\?|youtu\.be\/|\/shorts\/|\/video\/|vimeo\.com\/\d|dailymotion\.com\/video/.test(el.href || "");
-    const pool = [...document.querySelectorAll("a[href], button, [role=button], [role=link], [role=tab], input[type=submit]")]
-      .filter((el) => visible(el) && label(el).length > 1);
+    const pool = [...document.querySelectorAll(`a[href], button, [role=button], [role=link], [role=tab], input[type=submit], ${FIELDS}`)]
+      .filter((el) => visible(el) && (isField(el) || label(el).length > 1));
     const items = [];
     const seen = new Set();
     for (const el of [...pool.filter(isVideo), ...pool.filter((el) => !isVideo(el))]) {
-      const key = `${label(el)}|${el.href || ""}`;
+      const key = isField(el) ? el : `${label(el)}|${el.href || ""}`;
       if (seen.has(key)) continue;
       seen.add(key);
       items.push(el);
@@ -78,8 +91,9 @@ globalThis.JarvisActions = {
       text: (main.innerText || "").replace(/\n{3,}/g, "\n\n").slice(0, params.max_chars || 6000),
       selection: String(getSelection() || "").slice(0, 2000),
       items: items.map((el, i) => ({
-        index: i + 1, text: label(el), href: el.href || null,
-        kind: isVideo(el) ? "vidéo" : el.tagName === "A" ? "lien" : "bouton",
+        index: i + 1, text: isField(el) ? (label(el) || `champ ${i + 1}`) : label(el), href: el.href || null,
+        kind: isField(el) ? "champ" : isVideo(el) ? "vidéo" : el.tagName === "A" ? "lien" : "bouton",
+        value: isField(el) ? String(el.isContentEditable ? el.innerText : el.value || "").slice(0, 80) : undefined,
       })),
     };
   },
@@ -87,7 +101,18 @@ globalThis.JarvisActions = {
   click: function (params) {
     const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
       .replace(/[^a-z0-9]+/g, " ").trim();
-    const label = (el) => (el.getAttribute("aria-label") || el.getAttribute("title") || el.innerText || el.value || "")
+    const FIELDS = "input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox])"
+      + ":not([type=radio]):not([type=file]):not([type=image]):not([type=reset]), textarea, [contenteditable=true]"
+      + ", [contenteditable=''], [role=textbox]";
+    const fieldLabel = (el) => {
+      const byFor = el.id ? document.querySelector(`label[for="${CSS.escape(el.id)}"]`) : null;
+      const wrap = el.closest("label");
+      return (el.getAttribute("aria-label") || (byFor && byFor.innerText) || (wrap && wrap.innerText)
+        || el.getAttribute("placeholder") || el.getAttribute("title") || el.getAttribute("name") || "")
+        .replace(/\s+/g, " ").trim().slice(0, 140);
+    };
+    const label = (el) => (el.matches(FIELDS) ? fieldLabel(el)
+      : (el.getAttribute("aria-label") || el.getAttribute("title") || el.innerText || el.value || ""))
       .replace(/\s+/g, " ").trim().slice(0, 140);
     let target = null;
     const items = window.__jarvisItems || [];
@@ -96,7 +121,8 @@ globalThis.JarvisActions = {
       const query = norm(params.text);
       const words = query.split(" ").filter((w) => w.length > 2);
       let best = 0;
-      for (const el of document.querySelectorAll("a[href], button, [role=button], [role=link], [role=tab], [role=menuitem], input[type=submit]")) {
+      const selector = `a[href], button, [role=button], [role=link], [role=tab], [role=menuitem], input[type=submit], ${FIELDS}`;
+      for (const el of document.querySelectorAll(selector)) {
         const text = norm(label(el));
         if (!text) continue;
         const score = text.includes(query) ? 100 - Math.min(99, text.length - query.length) / 4
@@ -112,8 +138,10 @@ globalThis.JarvisActions = {
       return { clicked: false, text, error: "C'est une action sensible : fais-la toi-même." };
     }
     target.scrollIntoView({ block: "center" });
+    const field = target.matches(FIELDS);
     target.click();
-    return { clicked: true, text, href: target.href || null, kind: target.tagName === "A" ? "lien" : "bouton" };
+    if (field) target.focus();
+    return { clicked: true, text, href: target.href || null, kind: field ? "champ" : target.tagName === "A" ? "lien" : "bouton" };
   },
 
   scroll: function (params) {
@@ -125,21 +153,59 @@ globalThis.JarvisActions = {
   },
 
   type: function (params) {
-    const el = document.activeElement;
+    let el = null;
+    const items = window.__jarvisItems || [];
+    const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const fields = () => [...document.querySelectorAll("input, textarea, [contenteditable=true], [contenteditable=''], [role=textbox]")]
+      .filter((f) => !f.matches("[type=hidden], [type=submit], [type=button], [type=checkbox], [type=radio], [type=file]"));
+    const labelOf = (f) => {
+      const byFor = f.id ? document.querySelector(`label[for="${CSS.escape(f.id)}"]`) : null;
+      const wrap = f.closest("label");
+      const described = f.getAttribute("aria-labelledby");
+      const byIds = described ? described.split(/\s+/).map((id) => document.getElementById(id)).filter(Boolean)
+        .map((n) => n.innerText).join(" ") : "";
+      return (f.getAttribute("aria-label") || byIds || (byFor && byFor.innerText) || (wrap && wrap.innerText)
+        || f.getAttribute("placeholder") || f.getAttribute("title") || f.getAttribute("name") || "")
+        .replace(/\s+/g, " ").trim().slice(0, 80);
+    };
+    const nameOf = (f) => norm(labelOf(f));
+    if (params.index && items[params.index - 1] && items[params.index - 1].isConnected) el = items[params.index - 1];
+    else if (params.field) {
+      const query = norm(params.field);
+      let best = 0;
+      for (const f of fields()) {
+        const name = nameOf(f);
+        if (!name) continue;
+        const score = name === query ? 100 : name.includes(query) || query.includes(name) ? 80 : 0;
+        if (score > best) { best = score; el = f; }
+      }
+      if (!el) return { typed: false, error: `Je ne trouve pas de champ ${params.field} sur cette page.` };
+    }
+    if (el) { el.scrollIntoView({ block: "center" }); el.focus(); }
+    else el = document.activeElement;
     const editable = el && (el.isContentEditable || "value" in el) && el !== document.body;
-    if (!editable) return { typed: false, error: "Aucun champ de saisie n'est sélectionné sur la page." };
+    if (!editable) return { typed: false, error: "Aucun champ de saisie n'est sélectionné sur la page : dis-moi lequel." };
     if (el.isContentEditable) {
+      if (params.replace) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const selection = getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
       document.execCommand("insertText", false, params.text);
     } else {
+      // passer par le setter natif : React et consorts n'écoutent que les événements, pas el.value
       const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")?.set;
-      const value = `${el.value || ""}${params.text}`;
+      const value = params.replace ? params.text : `${el.value || ""}${params.text}`;
       if (setter) setter.call(el, value); else el.value = value;
       el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
     }
     if (params.submit) {
       if (el.form && el.form.requestSubmit) el.form.requestSubmit();
       else el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, bubbles: true }));
     }
-    return { typed: true };
+    return { typed: true, field: labelOf(el) };
   },
 };

@@ -58,10 +58,16 @@ def test_run_open_keys_and_tool_actions(commands, monkeypatch, tmp_path):
     loaded, matcher, notes = commands
     by_name = {c.name: c for c in loaded}
     assert custom.execute(by_name["note"], 'acheter du "pain"') == 'C\'est noté, acheter du "pain".'
-    deadline = __import__("time").monotonic() + 3
-    while not notes.exists() and __import__("time").monotonic() < deadline:
-        __import__("time").sleep(0.02)
-    assert "acheter du pain" in notes.read_text(encoding="utf-8")          # guillemets retirés du shell
+    def written() -> bool:
+        try:
+            return "acheter du pain" in notes.read_text(encoding="utf-8")
+        except OSError:
+            return False                                # pas encore créé, ou en cours d'écriture
+
+    deadline = __import__("time").monotonic() + 15      # le shell de Windows est parfois lent à démarrer
+    while not written() and __import__("time").monotonic() < deadline:
+        __import__("time").sleep(0.05)
+    assert written()                                    # guillemets retirés avant le shell
     assert custom.execute(by_name["version"]).startswith("Python 3.")
     opened = []
     monkeypatch.setattr("jarvis.system.folders.open_path", lambda path: opened.append(path))

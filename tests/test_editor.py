@@ -5,6 +5,7 @@ import itertools
 import json
 import shutil
 import subprocess
+import sys
 import threading
 import zipfile
 from pathlib import Path
@@ -118,15 +119,17 @@ def test_the_vsix_is_a_complete_package(tmp_path):
     assert "jarvis.port" in package["contributes"]["configuration"]["properties"]
 
 
-def test_install_reports_the_editor_answer(tmp_path, monkeypatch):
+def test_install_reports_the_editor_answer(tmp_path):
     vsix = install.build(tmp_path / "jarvis.vsix")
-    script = tmp_path / "code"
-    script.write_text("#!/bin/sh\necho \"$@\" > \"$0.args\"\nexit 0\n", encoding="utf-8")
-    script.chmod(0o755)
-    if shutil.which("sh") is None:
-        pytest.skip("sh absent")
+    if sys.platform == "win32":
+        script = tmp_path / "code.cmd"
+        script.write_text('@echo %* > "%~dpn0.args"\n', encoding="utf-8")
+    else:
+        script = tmp_path / "code"
+        script.write_text('#!/bin/sh\necho "$@" > "$0.args"\nexit 0\n', encoding="utf-8")
+        script.chmod(0o755)
     assert install.install(vsix, str(script)) is None
-    assert f"--install-extension {vsix} --force" in script.with_suffix(".args").read_text(encoding="utf-8")
+    assert f"--install-extension {vsix} --force" in (tmp_path / "code.args").read_text(encoding="utf-8")
     assert install.install(vsix, str(tmp_path / "absent")) is not None
 
 

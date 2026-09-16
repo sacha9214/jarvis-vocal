@@ -117,7 +117,7 @@ const vscode = {
     name: "projet",
     workspaceFolders: [{ uri: Uri.file(ROOT) }],
     getConfiguration: () => ({ get: (key) => ({ port: 47831, dataDir }[key]) }),
-    asRelativePath: (uri) => path.relative(ROOT, uri.fsPath),
+    asRelativePath: (uri) => path.posix.relative(ROOT, uri.fsPath),   // VS Code : toujours des « / »
     findFiles: async (glob, exclude, max) => {
       record("findFiles", { glob, exclude, max });
       const base = glob.replace("**/*", "").replace(/\*$/, "").toLowerCase();

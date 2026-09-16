@@ -135,8 +135,9 @@ def test_a_delayed_shutdown_is_announced_warned_and_cancellable(monkeypatch):
 
     fired = []
     monkeypatch.setattr(power_module, "execute", lambda action: fired.append(action))
-    monkeypatch.setattr(power_module, "WARN_BEFORE_S", 0.06)
-    monkeypatch.setattr(power_module, "MIN_WARNED_DELAY_S", 0.05)
+    # Rappel 1,5 s avant l'action : un écart de quelques millisecondes pouvait inverser les deux fils sur la CI.
+    monkeypatch.setattr(power_module, "WARN_BEFORE_S", 1.5)
+    monkeypatch.setattr(power_module, "MIN_WARNED_DELAY_S", 1.6)
     scheduler = power_module.PowerScheduler()
     said = []
     scheduler.announce = said.append
@@ -156,9 +157,10 @@ def test_a_delayed_shutdown_is_announced_warned_and_cancellable(monkeypatch):
             time.sleep(0.02)
         return condition()
 
-    scheduler.schedule("sleep", 1)                   # une seconde : le minimum accepté
-    assert wait_until(lambda: fired == ["sleep"])
+    scheduler.schedule("sleep", 2)                   # rappel à 0,5 s, action à 2 s
     assert wait_until(lambda: any("dans une minute" in text for text in said))     # prévenu avant
+    assert fired == []                               # et pas encore agi
+    assert wait_until(lambda: fired == ["sleep"])
     assert scheduler.pending() is None
 
     said.clear()

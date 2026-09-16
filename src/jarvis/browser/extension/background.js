@@ -32,9 +32,9 @@ function connect() {
   } catch {
     return;
   }
-  socket.onopen = () => {
+  socket.onopen = async () => {
     send({ type: "hello", token: CONFIG.token, browser: BROWSER, focused, version: api.runtime.getManifest().version });
-    setBadge("");
+    setBadge((await hasHostPermission()) ? "" : "!");
   };
   socket.onmessage = async (event) => {
     let message;
@@ -50,9 +50,17 @@ function connect() {
   socket.onerror = () => { if (socket) socket.close(); };
 }
 
+const NO_PERMISSION = "Jarvis n'a pas encore le droit de lire les pages de ce navigateur : clique sur l'icône Jarvis "
+  + "dans la barre d'outils et accepte l'accès à tous les sites.";
+
+async function hasHostPermission() {
+  try { return await api.permissions.contains({ origins: ["<all_urls>"] }); } catch { return true; }
+}
+
 function explain(error) {
   const text = String((error && error.message) || error);
-  if (/cannot be scripted|Cannot access|chrome:\/\/|edge:\/\/|about:|Missing host permission/i.test(text)) {
+  if (/Missing host permission/i.test(text)) return NO_PERMISSION;
+  if (/cannot be scripted|Cannot access|chrome:\/\/|edge:\/\/|about:/i.test(text)) {
     return "Cette page est protégée par le navigateur (page interne ou boutique d'extensions).";
   }
   return text;
@@ -68,7 +76,12 @@ async function inPage(tab, name, params, { world = "ISOLATED", allFrames = false
   const results = await api.scripting.executeScript({
     target: { tabId: tab.id, allFrames }, world, func: globalThis.JarvisActions[name], args: [params],
   });
-  return results.map((r) => r.result).filter((r) => r !== undefined && r !== null);
+  const failed = (results || []).find((r) => r && r.error);
+  if (failed) throw new Error(String((failed.error && failed.error.message) || failed.error));   // Firefox
+  const found = (results || []).map((r) => r && r.result).filter((r) => r !== undefined && r !== null);
+  // Firefox : sans l'accès aux sites (facultatif en MV3), l'injection ne renvoie rien au lieu d'échouer.
+  if (!found.length && !(await hasHostPermission())) throw new Error(NO_PERMISSION);
+  return found;
 }
 
 async function handle(action, params) {
@@ -120,6 +133,13 @@ async function handle(action, params) {
   }
 }
 
+// Un clic sur l'icône demande l'accès aux sites (Firefox ne l'accorde pas à l'installation) et relie Jarvis.
+api.action.onClicked.addListener(async () => {
+  try {
+    if (await api.permissions.request({ origins: ["<all_urls>"] })) setBadge(socket ? "" : "off");
+  } catch { /* navigateur sans demande de permission à la volée */ }
+  connect();
+});
 api.alarms.create("jarvis-reconnexion", { periodInMinutes: 0.5 });
 api.alarms.onAlarm.addListener(connect);
 api.runtime.onStartup.addListener(connect);

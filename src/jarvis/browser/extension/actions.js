@@ -1,7 +1,8 @@
 // Actions exécutées DANS la page. Chaque fonction est autonome (aucune variable extérieure) :
-// l'extension l'injecte telle quelle, et Jarvis la réutilise pour Safari via AppleScript.
+// l'extension l'injecte telle quelle (par son code source : une expression `function`, pas une méthode
+// raccourcie, sinon Firefox refuse l'injection en silence), et Jarvis la réutilise pour Safari via AppleScript.
 globalThis.JarvisActions = {
-  media(params) {
+  media: function (params) {
     const all = [...document.querySelectorAll("video, audio")];
     if (!all.length) return { found: false };
     const score = (m) => {
@@ -51,7 +52,7 @@ globalThis.JarvisActions = {
     };
   },
 
-  page(params) {
+  page: function (params) {
     const visible = (el) => {
       const r = el.getBoundingClientRect();
       const s = getComputedStyle(el);
@@ -83,7 +84,7 @@ globalThis.JarvisActions = {
     };
   },
 
-  click(params) {
+  click: function (params) {
     const norm = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
       .replace(/[^a-z0-9]+/g, " ").trim();
     const label = (el) => (el.getAttribute("aria-label") || el.getAttribute("title") || el.innerText || el.value || "")
@@ -115,7 +116,7 @@ globalThis.JarvisActions = {
     return { clicked: true, text, href: target.href || null, kind: target.tagName === "A" ? "lien" : "bouton" };
   },
 
-  scroll(params) {
+  scroll: function (params) {
     const height = innerHeight * 0.8;
     if (params.direction === "top") scrollTo({ top: 0, behavior: "smooth" });
     else if (params.direction === "bottom") scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
@@ -123,7 +124,7 @@ globalThis.JarvisActions = {
     return { scrolled: params.direction };
   },
 
-  type(params) {
+  type: function (params) {
     const el = document.activeElement;
     const editable = el && (el.isContentEditable || "value" in el) && el !== document.body;
     if (!editable) return { typed: false, error: "Aucun champ de saisie n'est sélectionné sur la page." };

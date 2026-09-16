@@ -85,6 +85,21 @@ def test_extension_answers_jarvis_requests(bridge):
     assert wait_for(lambda: server.browsers() == [])
 
 
+def test_a_call_during_a_reconnection_waits_for_the_browser(bridge):
+    server, port = bridge
+    extension = FakeExtension(port)
+    threading.Timer(0.4, extension.start).start()             # le navigateur se relie 400 ms après l'appel
+    try:
+        assert server.call("media", {"action": "pause"})["found"] is True
+    finally:
+        extension.stop.set()
+        extension.join(2)
+    started = time.monotonic()
+    with pytest.raises(BrowserUnavailable):
+        server.call("media", {"action": "pause"}, grace=0.3)
+    assert time.monotonic() - started < 1.5
+
+
 def test_wrong_token_is_rejected(bridge):
     server, port = bridge
     extension = FakeExtension(port, token="mauvais")

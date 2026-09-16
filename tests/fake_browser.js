@@ -41,7 +41,11 @@ StdioSocket.OPEN = 1;
 StdioSocket.CLOSED = 3;
 
 const chrome = {
-  action: { setBadgeText: (details) => record("setBadgeText", details) },
+  action: { setBadgeText: (details) => record("setBadgeText", details), onClicked: { addListener: () => {} } },
+  permissions: {
+    contains: async () => process.env.FAKE_NO_PERMISSION !== "1",
+    request: async () => true,
+  },
   runtime: {
     getManifest: () => ({ version: "1.0" }),
     onStartup: { addListener: () => {} },
@@ -66,6 +70,8 @@ const chrome = {
       if (args[0] && args[0].text === "interdit") {
         throw new Error("Cannot access contents of the page at chrome://extensions/");
       }
+      if (process.env.FAKE_NO_PERMISSION === "1") return [];        // Firefox sans accès aux sites : rien
+
       return [{ result: { found: true, volume: 42, clicked: true } }];
     },
   },

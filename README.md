@@ -86,7 +86,7 @@ cuisine »), le modèle **lit d'abord la page**, puis clique.
 | Navigateur | Comment |
 |---|---|
 | Chrome, Edge, Brave, Opera, Vivaldi, Arc | extension Jarvis : `uv run jarvis extension`, puis « Charger l'extension non empaquetée » |
-| Firefox | la même extension, en module temporaire (à recharger après chaque redémarrage de Firefox) |
+| Firefox | la même extension, en module temporaire (à recharger après chaque redémarrage de Firefox) ; un clic sur l'icône Jarvis accorde l'accès aux sites, que Firefox ne donne pas à l'installation |
 | Safari (macOS) | sans extension, par AppleScript : activer « Autoriser JavaScript depuis les Apple Events » |
 
 - `jarvis extension` affiche la marche à suivre et ouvre le dossier à charger.
@@ -391,9 +391,12 @@ src/jarvis/
   review, passe par Claude.
 - **VS Code** : la lecture du terminal n'est pas exposée par l'API des extensions (Jarvis ne lit pas la
   sortie d'une commande) ; dans un dossier « non approuvé », VS Code bloque lui-même l'exécution.
-- **Navigateur** : les actions sont testées sur une vraie page (lecture, volume, clics, refus des
-  actions sensibles) et le pont par des tests automatiques ; l'extension n'a pas encore été chargée
-  dans chaque navigateur. Les pages internes (`chrome://`, boutique d'extensions) restent inaccessibles.
+- **Navigateur** : vérifié pour de vrai dans Firefox (connexion, lecture de page, onglets, reprise après
+  la mise en veille de la page d'arrière-plan) ; deux défauts trouvés à cette occasion et corrigés : la
+  politique de sécurité MV3 de Firefox transformait `ws://` en `wss://` (le pont recevait un handshake
+  TLS), et les actions écrites en méthode raccourcie ne s'injectaient pas. Chrome, Edge, Brave ne sont
+  pas encore vérifiés en vrai (Chrome 137+ n'accepte plus `--load-extension` en test automatique). Les
+  pages internes (`chrome://`, boutique d'extensions) restent inaccessibles.
 - **Voix de test** : les mesures de compréhension utilisent des voix de synthèse, plus dures à
   transcrire qu'une vraie voix.
 

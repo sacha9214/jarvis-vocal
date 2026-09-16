@@ -60,7 +60,8 @@ def run(port: int) -> int:
     print("Firefox :")
     print("  1. Ouvre about:debugging#/runtime/this-firefox, « Charger un module complémentaire temporaire ».")
     print(f"  2. Choisis {folders['firefox'] / 'manifest.json'}")
-    print("  3. Dans about:addons › Jarvis › Permissions, autorise l'accès à tous les sites.")
+    print("  3. Clique sur l'icône Jarvis dans la barre d'outils et accepte l'accès à tous les sites")
+    print("     (ou about:addons › Jarvis › Permissions). Tant que ce n'est pas fait, le badge affiche « ! ».")
     print("  (Firefox retire les modules temporaires à sa fermeture ; recommence après un redémarrage.)\n")
     if IS_MAC:
         print("Safari (sans extension) : Réglages › Avancés ›")

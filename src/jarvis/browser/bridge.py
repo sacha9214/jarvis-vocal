@@ -133,9 +133,15 @@ class BrowserBridge:
             return max(focused or clients, key=lambda client: client.focused_at)
 
     def call(self, action: str, params: dict[str, Any] | None = None, timeout: float = 8.0,
-             kind: str = BROWSER) -> dict[str, Any]:
-        """Appelé depuis un fil quelconque (outil) ; exécuté sur la boucle du serveur."""
+             kind: str = BROWSER, grace: float = 2.0) -> dict[str, Any]:
+        """Appelé depuis un fil quelconque (outil) ; exécuté sur la boucle du serveur.
+        `grace` : Firefox coupe la page d'arrière-plan après une minute de silence et la relie aussitôt
+        (mesuré) ; un appel qui tombe pile dessus attend un peu au lieu d'échouer."""
         client = self.pick(kind)
+        deadline = time.monotonic() + grace
+        while client is None and time.monotonic() < deadline:
+            time.sleep(0.1)
+            client = self.pick(kind)
         if client is None:
             if kind == EDITOR:
                 raise BrowserUnavailable("Aucun éditeur n'est relié à Jarvis : installe l'extension VS Code avec "

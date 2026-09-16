@@ -195,9 +195,15 @@ def load(path: Path | None = None) -> Config:
     config = Config()
     path = path or paths.config_path()
     if path.exists():
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError as exc:
+            where = getattr(exc, "problem_mark", None)
+            line = f", ligne {where.line + 1}" if where is not None else ""
+            raise ValueError(f"{path}{line} : ce n'est pas un fichier YAML valide "
+                             f"({getattr(exc, 'problem', exc)}).") from None
         if not isinstance(data, dict):
-            raise ValueError(f"{path} : la configuration doit être un dictionnaire YAML")
+            raise ValueError(f"{path} : la configuration doit être une liste de réglages « clé: valeur »")
         _apply(config, data)
     LOADED_PATH = path
     return config
@@ -209,7 +215,10 @@ def update_file(updates: dict[str, Any], path: Path | None = None) -> Path:
     path = path or LOADED_PATH or paths.config_path()
     data: dict[str, Any] = {}
     if path.exists():
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except yaml.YAMLError:
+            data = {}          # fichier abîmé : on le remplace plutôt que de refuser d'enregistrer
     _merge(data, updates)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(yaml.safe_dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")

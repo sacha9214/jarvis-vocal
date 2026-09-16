@@ -416,6 +416,11 @@ src/jarvis/
 - **En cas de plantage** : tout est dans `logs/jarvis.log` du dossier de données (`jarvis doctor`
   affiche le chemin) ; un plantage natif (MLX, torch, PortAudio) laisse sa pile dans `logs/crash.log`.
   Une ligne « 💾 » par conversation donne mémoire, swap, trames micro perdues et nombre de fils.
+- **Micro perdu** (débranché, pris par une autre application, session verrouillée) : Jarvis le dit au
+  bout de trois secondes et rouvre le flux tout seul toutes les cinq secondes jusqu'à ce qu'il revienne.
+  Il ne réinitialise pas PortAudio pour autant : mesuré, cela couperait sa propre voix.
+- **Consommation en veille** : 1,3 % d'un cœur, presque entièrement le modèle du mot d'activation
+  (mel-spectrogramme ONNX). Il n'y a rien à y gagner.
 - **Pas d'annulation d'écho** : sans casque, le micro entend Jarvis. Un garde-fou ignore
   ce qu'il vient de dire et la coupure passe par « Hey Jarvis ».
 - **Windows** : validé par la CI (installation, lint, tests) mais pas encore sur une vraie

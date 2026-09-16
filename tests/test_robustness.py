@@ -5,6 +5,8 @@ import threading
 import time
 from types import SimpleNamespace
 
+import numpy as np
+
 from jarvis import logs
 from jarvis.config import Config
 from jarvis.events import EventBus
@@ -141,3 +143,44 @@ def test_a_near_miss_is_reported_once_in_a_while():
     assistant._last_near_miss = 0.0
     assistant._near_miss(SimpleNamespace(score=0.24, threshold=0.25))
     assert len(events) == 1
+
+
+def test_a_lost_microphone_is_reported_and_reopened(monkeypatch):
+    """Micro débranché ou pris par une autre application : Jarvis restait sourd sans jamais le dire."""
+    import queue as queue_module
+
+    from jarvis.audio import io
+
+    monkeypatch.setattr(io, "_DEAF_AFTER", 2)
+    monkeypatch.setattr(io, "_RETRY_EVERY", 1)
+
+    class SilentThenBack:
+        """File du micro : plus rien, jusqu'à ce que la réouverture réussisse."""
+
+        def __init__(self):
+            self.audio = None
+
+        def get(self, timeout=None):
+            if self.audio is None:
+                raise queue_module.Empty
+            audio, self.audio = self.audio, None
+            return audio
+
+    mic = io.Microphone.__new__(io.Microphone)
+    mic._frame, mic._resampler, mic.name = 4, None, "Micro d'essai"
+    mic._queue = SilentThenBack()
+    lost = []
+    mic.on_lost = lambda: lost.append(True)
+    attempts = []
+
+    def reopen():
+        attempts.append(True)
+        if len(attempts) >= 2:                      # le micro revient au deuxième essai
+            mic._queue.audio = np.ones(4, np.float32)
+            return True
+        return False
+
+    mic._reopen = reopen
+    assert list(next(mic.frames())) == [1.0, 1.0, 1.0, 1.0]     # l'audio revient tout seul
+    assert lost == [True]                                        # prévenu une seule fois
+    assert len(attempts) == 2

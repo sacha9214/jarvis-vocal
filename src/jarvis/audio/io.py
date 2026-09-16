@@ -5,7 +5,7 @@ import logging
 import queue
 import threading
 from collections import deque
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import numpy as np
 import sounddevice as sd
@@ -15,6 +15,8 @@ from . import SAMPLE_RATE
 from .vad import CHUNK
 
 LOG = logging.getLogger("jarvis.audio")
+_DEAF_AFTER = 6        # attentes de 0,5 s sans une seule trame avant de déclarer le micro perdu (3 s)
+_RETRY_EVERY = 10      # une tentative de réouverture toutes les 5 s ensuite
 
 
 class Microphone:
@@ -24,7 +26,9 @@ class Microphone:
 
     def __init__(self, device: int | str | None = None, frame: int = CHUNK):
         info = sd.query_devices(device, "input")
+        self._device = device
         self.name = info["name"]
+        self.on_lost: Callable[[], None] | None = None   # prévenir l'interface et le journal
         self.rate = int(info["default_samplerate"])
         self._frame = frame
         self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=500)
@@ -41,6 +45,25 @@ class Microphone:
         except queue.Full:
             self.dropped += 1
 
+    def _reopen(self) -> bool:
+        """Rouvre le flux : un micro débranché puis rebranché, ou un périphérique endormi, revient tout seul."""
+        try:
+            self._stream.stop()
+            self._stream.close()
+        except Exception:  # noqa: BLE001 - le flux est déjà perdu
+            pass
+        # Surtout ne pas réinitialiser PortAudio (sd._terminate) : mesuré, cela invalide aussi le flux de
+        # sortie, et Jarvis perdrait la voix en essayant de retrouver l'oreille.
+        try:
+            self._stream = sd.InputStream(device=self._device, channels=1, samplerate=self.rate, dtype="float32",
+                                          blocksize=int(self.rate * 0.02), latency="low", callback=self._callback)
+            self._stream.start()
+        except Exception as exc:  # noqa: BLE001 - toujours pas de micro : on réessaiera
+            LOG.debug("Micro toujours indisponible : %s", exc)
+            return False
+        LOG.info("Micro retrouvé : %s", self.name)
+        return True
+
     def __enter__(self) -> Microphone:
         self._stream.start()
         LOG.info("Micro : %s (%d Hz → 16 kHz)", self.name, self.rate)
@@ -52,11 +75,22 @@ class Microphone:
 
     def frames(self) -> Iterator[np.ndarray]:
         pending = np.zeros(0, np.float32)
+        silent = 0
         while True:
             try:
                 # timeout : garde Ctrl+C réactif (un get() bloquant l'ignore sous Windows)
                 block = self._queue.get(timeout=0.5)
+                silent = 0
             except queue.Empty:
+                # Plus rien n'arrive : micro débranché, session verrouillée, périphérique pris par une autre
+                # application. Sans cela, Jarvis restait sourd sans jamais le dire.
+                silent += 1
+                if silent == _DEAF_AFTER:
+                    LOG.warning("Le micro « %s » ne donne plus rien : je tente de le rouvrir.", self.name)
+                    if self.on_lost:
+                        self.on_lost()
+                if silent >= _DEAF_AFTER and silent % _RETRY_EVERY == 0 and self._reopen():
+                    silent = 0
                 continue
             if self._resampler is not None:
                 block = self._resampler.resample_chunk(block)

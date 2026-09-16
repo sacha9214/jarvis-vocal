@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,16 +50,21 @@ def ensure(asset: Asset) -> Path:
     if dest.exists():
         return dest
     dest.parent.mkdir(parents=True, exist_ok=True)
-    tmp = dest.with_name(dest.name + ".part")
+    # Nom propre au processus : deux téléchargements en parallèle ne s'écrasent pas.
+    tmp = dest.with_name(f"{dest.name}.{os.getpid()}.part")
     digest = hashlib.sha256()
     LOG.info("Téléchargement de %s…", asset.path)
-    with httpx.stream("GET", asset.url, follow_redirects=True,
-                      timeout=httpx.Timeout(60.0, connect=10.0)) as response:
-        response.raise_for_status()
-        with tmp.open("wb") as file:
-            for chunk in response.iter_bytes(1 << 16):
-                file.write(chunk)
-                digest.update(chunk)
+    try:
+        with httpx.stream("GET", asset.url, follow_redirects=True,
+                          timeout=httpx.Timeout(60.0, connect=10.0)) as response:
+            response.raise_for_status()
+            with tmp.open("wb") as file:
+                for chunk in response.iter_bytes(1 << 16):
+                    file.write(chunk)
+                    digest.update(chunk)
+    except BaseException:          # coupure réseau, Ctrl+C : ne pas laisser de fichier à moitié écrit
+        tmp.unlink(missing_ok=True)
+        raise
     if asset.sha256 and digest.hexdigest() != asset.sha256:
         tmp.unlink(missing_ok=True)
         raise RuntimeError(f"{asset.path} : empreinte SHA-256 inattendue, fichier rejeté.")

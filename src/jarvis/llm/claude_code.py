@@ -50,6 +50,7 @@ _ISOLATION_ENV = {
 _FATAL_RETRY_ERRORS = {"authentication_failed", "oauth_org_not_allowed", "account_on_hold",
                        "billing_error", "rate_limit", "model_not_found"}
 MCP_SERVER_NAME = "jarvis"
+_KNOWN_TURNS = 40      # échanges retenus pour repérer ce que ce processus n'a pas vu (au-delà : inutile)
 
 
 def child_env(auth: str, environ: dict[str, str] | None = None) -> dict[str, str]:
@@ -328,6 +329,7 @@ class ClaudeCodeLLM:
                 if self._turn_open:   # flux abandonné en cours de route
                     self._interrupt()
                 self._known += [*missed, ("user", user_text), ("assistant", "".join(reply).strip() or "…")]
+                del self._known[:-_KNOWN_TURNS]     # borné : sert seulement à repérer les tours manqués
 
     def _missed_turns(self, conversation: list[tuple[str, str]]) -> list[tuple[str, str]]:
         """Échanges que ce processus n'a pas vus : réflexes, réponses du modèle local…"""

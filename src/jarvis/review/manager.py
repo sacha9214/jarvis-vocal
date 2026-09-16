@@ -19,6 +19,7 @@ from .project import Project, find_project
 
 LOG = logging.getLogger("jarvis.review")
 LOCAL, CLAUDE = "local", "claude"
+KEEP_REPORTS = 50      # rapports de review gardés sur le disque
 SCOPES = ("project", "changes", "file")
 
 
@@ -195,8 +196,18 @@ class ReviewManager:
         job.note = " ".join(part for part in (job.note, note) if part)
         return report
 
+    def _forget_old_reports(self) -> None:
+        """Garde les derniers rapports : sinon le dossier grossit sans fin."""
+        try:
+            reports = sorted(self.reports.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+            for old in reports[KEEP_REPORTS - 1:]:
+                old.unlink(missing_ok=True)
+        except OSError:
+            pass
+
     def _save(self, job: Job, summary: str, body: str) -> Path:
         self.reports.mkdir(parents=True, exist_ok=True)
+        self._forget_old_reports()
         now = datetime.now()
         name = re.sub(r"[^\w.-]+", "-", job.project.name).strip("-") or "projet"
         path = self.reports / f"{name}-{now:%Y-%m-%d-%H%M%S}.md"

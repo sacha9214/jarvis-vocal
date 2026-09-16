@@ -41,3 +41,13 @@ def test_yaml_overrides_and_rejects_typos(tmp_path):
     path.write_text("llm:\n  modle: x\n", encoding="utf-8")
     with pytest.raises(ValueError, match="llm.modle"):
         config.load(path)
+
+
+def test_a_broken_config_file_says_what_and_where(tmp_path):
+    path = tmp_path / "config.yaml"
+    path.write_text("llm:\n  backend: [ollama\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="ligne 3 : ce n'est pas un fichier YAML valide"):
+        config.load(path)
+    path.write_text("- une liste\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="liste de réglages"):
+        config.load(path)

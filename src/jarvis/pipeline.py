@@ -161,6 +161,10 @@ class Assistant:
 
     def run(self) -> None:
         self._main_thread = threading.get_ident()
+        if hasattr(self.mic, "on_lost"):
+            self.mic.on_lost = lambda: self.bus.publish(
+                "error", text="Le micro ne répond plus : vérifie qu'il est branché et qu'aucune autre "
+                              "application ne l'utilise. Je réessaie tout seul.")
         frames = self._frames = self.mic.frames()
         wakeword = self.parts.wakeword
         self._publish_engine()

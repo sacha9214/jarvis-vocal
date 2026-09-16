@@ -188,9 +188,12 @@ class Matcher:
         self._rules: list[tuple[re.Pattern[str], CustomCommand]] = []
         for command in commands:
             for phrase in command.phrases:
-                # « * » capturé avant la normalisation, qui effacerait l'étoile
+                # « * » découpé avant la normalisation, qui effacerait l'étoile. Seul le premier capture :
+                # les suivants acceptent n'importe quoi (une regex n'admet qu'un groupe nommé « text »).
                 parts = [re.escape(_aligned(part)[0].strip()) for part in phrase.split("*")]
-                pattern = r"\s*(?P<text>.+?)\s*".join(parts) if len(parts) > 1 else parts[0]
+                pattern = parts[0]
+                for number, part in enumerate(parts[1:]):
+                    pattern += (r"\s*(?P<text>.+?)\s*" if number == 0 else r"\s*.+?\s*") + part
                 self._rules.append((re.compile(rf"^{pattern}$"), command))
         self._rules.sort(key=lambda rule: -len(rule[0].pattern))     # la phrase la plus précise d'abord
 

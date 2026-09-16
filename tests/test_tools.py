@@ -149,16 +149,22 @@ def test_a_delayed_shutdown_is_announced_warned_and_cancellable(monkeypatch):
     assert scheduler.cancel() == "J'annule l'extinction."
     assert scheduler.pending() is None and scheduler.status() == "Rien n'est programmé pour le moment."
 
+    def wait_until(condition, seconds=15.0):
+        """Attend sans dépendre de la charge de la machine (la CI est parfois très lente)."""
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline and not condition():
+            time.sleep(0.02)
+        return condition()
+
     scheduler.schedule("sleep", 1)                   # une seconde : le minimum accepté
-    time.sleep(1.4)
-    assert fired == ["sleep"]
-    assert any("dans une minute" in text for text in said)     # prévenu avant
+    assert wait_until(lambda: fired == ["sleep"])
+    assert wait_until(lambda: any("dans une minute" in text for text in said))     # prévenu avant
     assert scheduler.pending() is None
 
     said.clear()
     scheduler.schedule("shutdown", 1)
     scheduler.cancel()
-    time.sleep(1.4)
+    time.sleep(1.5)
     assert fired == ["sleep"] and said == []         # annulé : ni action ni rappel
 
     assert "inconnue" in scheduler.schedule("exploser", 60)

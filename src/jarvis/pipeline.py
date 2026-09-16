@@ -116,7 +116,7 @@ class Assistant:
         self._current_state = "sleeping"
         self._last_reply = ""
         self._system = ""
-        self._system_key: tuple[date, str, bool] | None = None
+        self._system_key: tuple | None = None
         self._requests: queue.Queue[_Request] = queue.Queue()
         self._main_thread: int | None = None
         self._frames: Iterator[np.ndarray] | None = None
@@ -510,9 +510,12 @@ class Assistant:
 
     def _messages(self, text: str) -> list[Message]:
         messages: list[Message] = [{"role": "system", "content": self._system_prompt()}, *self.history]
-        # Contexte écran juste avant la question : le début du prompt reste identique (cache KV).
+        # Contexte écran et souvenirs juste avant la question : le début du prompt reste identique (cache KV).
         if self.parts.screen is not None and (context := self.parts.screen.context()):
             messages.append({"role": "system", "content": context})
+        memory = getattr(self.parts, "memory", None)
+        if memory is not None and (remembered := memory.relevant(text, self.cfg.user_name or "l'utilisateur")):
+            messages.append({"role": "system", "content": remembered})
         return [*messages, {"role": "user", "content": text}]
 
     def _is_echo(self, text: str) -> bool:

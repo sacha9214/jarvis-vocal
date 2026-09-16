@@ -418,6 +418,21 @@ def _browser(plain: str, soft: str) -> Command | None:
     return None
 
 
+def _memory(plain: str, soft: str) -> Command | None:
+    """« retiens que… », « oublie que… », « qu'est-ce que tu sais sur moi ? » : jamais confondu avec autre chose."""
+    if match := re.fullmatch(r"(?:retiens|souviens toi|rappelle toi|n oublie pas|note|memorise|enregistre)"
+                             r"(?: bien)? (?:que |qu )(?P<t>.+)", plain):
+        return Command("memory", {"action": "remember", "text": _span(soft, match, "t")})
+    if match := re.fullmatch(r"(?:oublie|efface de ta memoire)(?: que| qu)? (?P<t>.+)", plain):
+        if re.fullmatch(r"tout|tout ce que tu sais(?: sur moi)?|toute ta memoire", match["t"]):
+            return Command("memory", {"action": "forget_all"})
+        return Command("memory", {"action": "forget", "text": _span(soft, match, "t")})
+    if re.fullmatch(r"(?:qu est ce que tu sais|que sais tu|tu sais quoi|qu est ce que tu as retenu)"
+                    r"(?: sur moi| de moi)?|(?:montre|dis) moi ta memoire|qu est ce que tu retiens", plain):
+        return Command("memory", {"action": "list"})
+    return None
+
+
 def _machine(plain: str, soft: str) -> Command | None:
     """Fichiers, fenêtres, presse-papiers, réglages, capture, calcul : sans passer par le modèle."""
     # -- fichiers
@@ -508,16 +523,26 @@ def _machine(plain: str, soft: str) -> Command | None:
     return None
 
 
-_RULES = (_power, _browser, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
+_RULES = (_memory, _power, _browser, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
           _folder, _open)
-_APP_RULES = (_power, _app, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
+_APP_RULES = (_memory, _power, _app, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
               _folder, _open)
-_CODE_RULES = (_power, _code, _app, _volume, _media, _timer, _machine, _search, _review, _screen,
+_CODE_RULES = (_memory, _power, _code, _app, _volume, _media, _timer, _machine, _search, _review, _screen,
                _close, _folder, _open)
+
+
+# Sur le texte d'origine : un souvenir garde ses tirets, apostrophes et majuscules (« jarvis-vocal », « Léa »).
+_REMEMBER = re.compile(
+    r"^\W*(?:(?:hey|ok|dis)\W+)?(?:jarvis\W+)?(?:(?:est-ce que\W+)?(?:tu peux|peux-tu)\W+)?"
+    r"(?:retiens|retenir|souviens[\s-]toi|te souvenir|rappelle[\s-]toi|n['’]oublie pas|note|noter"
+    r"|m[ée]morise|m[ée]moriser|enregistre)"
+    r"(?:\s+bien)?\s+(?:que\s+|qu['’]\s*)(?P<t>.+?)[\s.!?]*$", re.IGNORECASE)
 
 
 def parse(text: str, context: str = "") -> Command | None:
     """`context` : « browser », « code », « app » ou « » (inconnu : les règles du navigateur s'appliquent)."""
+    if match := _REMEMBER.match(text.strip()):
+        return Command("memory", {"action": "remember", "text": match["t"].strip()})
     plain, soft = _aligned(text)
     if lead := _LEAD.match(plain):
         plain, soft = plain[lead.end():], soft[lead.end():]

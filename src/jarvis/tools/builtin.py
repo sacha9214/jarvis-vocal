@@ -1,6 +1,7 @@
 """Outils intégrés, macOS et Windows."""
 from __future__ import annotations
 
+from ..memory import Memory
 from ..system import (
     apps,
     calc,
@@ -628,3 +629,23 @@ def screenshot_tool(mode: str = "screen") -> str:
 def calculate_tool(expression: str) -> str:
     result = calc.evaluate(expression)
     return result or f"Je n'arrive pas à calculer {expression}."
+
+
+# -- mémoire : ce que Jarvis retient d'une session à l'autre
+
+MEMORY = Memory()
+
+
+@tool("memory", "Mémoire de long terme sur l'utilisateur : remember (retenir un fait court, text), forget (oublier "
+      "ce qui ressemble à text), list (réciter ce que tu sais), forget_all (tout effacer). À utiliser quand "
+      "on te dit « retiens que », « souviens-toi », « oublie que », ou pour noter une préférence durable.",
+      {"action": {"type": "string", "enum": ["remember", "forget", "list", "forget_all"]},
+       "text": {"type": "string"}}, ("action",))
+def memory_tool(action: str, text: str = "") -> str:
+    if action == "remember":
+        return MEMORY.remember(text)
+    if action == "forget":
+        return MEMORY.forget(text)
+    if action == "forget_all":
+        return MEMORY.forget_all()
+    return MEMORY.recite()

@@ -33,7 +33,7 @@ _PERCENT_OF = re.compile(r"(?P<part>[\d.]+)\s*%de\s*(?P<whole>.+)")
 
 
 def _plain(text: str) -> str:
-    text = unicodedata.normalize("NFD", text.lower())
+    text = unicodedata.normalize("NFD", text.lower().replace("œ", "oe").replace("æ", "ae"))
     return "".join(c for c in text if unicodedata.category(c) != "Mn")
 
 

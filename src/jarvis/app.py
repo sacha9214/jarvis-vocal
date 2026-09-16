@@ -20,6 +20,7 @@ from .editor import EditorController
 from .events import EventBus
 from .llm import load_llm
 from .llm.router import CLAUDE, Router
+from .memory import Memory
 from .review import ReviewManager
 from .server import LocalServer, start_server
 from .stt import SpeechToText, load_stt
@@ -94,6 +95,7 @@ class Components:
     review: ReviewManager | None = None
     desktop: DesktopController | None = None
     editor: EditorController | None = None
+    memory: Memory | None = None
 
 
 def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, executor: ToolExecutor | None = None,
@@ -128,6 +130,7 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
     builtin.REVIEW = review
     desktop = DesktopController(foreground)     # UI Automation ou AX chargés au premier usage
     builtin.DESKTOP = desktop
+    memory = builtin.MEMORY
 
     def timed[T](label: str, build: Callable[[], T]) -> T:
         start = time.perf_counter()
@@ -155,4 +158,4 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
         stt = timed("Transcription", warm_stt)
         wakeword, vad = ears_future.result()
         return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server, screen,
-                          foreground, browser, review, desktop, editor)
+                          foreground, browser, review, desktop, editor, memory)

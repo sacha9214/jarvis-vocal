@@ -72,7 +72,7 @@ class CustomCommand:
 
 
 def _plain(text: str) -> str:
-    text = unicodedata.normalize("NFD", text.lower())
+    text = unicodedata.normalize("NFD", text.lower().replace("œ", "oe").replace("æ", "ae"))
     return "".join(c for c in text if unicodedata.category(c) != "Mn")
 
 

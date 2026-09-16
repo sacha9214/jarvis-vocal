@@ -98,6 +98,32 @@ sans ralentir Whisper ni le LLM sur le GPU.
 - Avec Claude, les outils passent par un **serveur MCP local** : Claude n'a accès à aucun de
   ses outils intégrés (ni terminal, ni fichiers), seulement aux actions de Jarvis.
 
+## Mémoire
+
+Jarvis retient ce que tu lui apprends, d'une session à l'autre :
+
+| Tu dis | Effet |
+|---|---|
+| « retiens que je travaille sur le projet jarvis-vocal » | noté pour toujours |
+| « souviens-toi que ma sœur s'appelle Léa » | idem |
+| « qu'est-ce que tu sais sur moi ? » | il récite ce qu'il a retenu |
+| « oublie que je préfère le café sans sucre » | retire le souvenir le plus proche |
+| « oublie tout » | efface la mémoire |
+
+Ensuite, « comment s'appelle ma sœur ? » répond « Léa », sans que tu le redises.
+
+- **Seuls les souvenirs utiles à la question sont donnés au modèle**, juste avant elle. Mesuré sur huit
+  questions : avec toute la mémoire dans le prompt, un modèle de 4 milliards de paramètres la récitait
+  n'importe où (« La capitale de l'Italie est Rome. Je préfère le café sans sucre »), 6 réponses
+  correctes sur 8 ; en ne donnant que les souvenirs pertinents, 8 sur 8.
+- Les souvenirs lui sont présentés **à la troisième personne** (« Sacha travaille sur… ») : lus tels
+  quels, « je travaille sur jarvis » lui faisaient dire « Je travaille sur Jarvis », comme s'il parlait
+  de lui-même.
+- Le prompt système ne change pas quand la mémoire change : le cache du modèle reste valable.
+- **Rien de secret n'est retenu** : mot de passe, code, numéro de carte ou clé sont refusés.
+- Quarante souvenirs au plus, le plus ancien laisse la place. Tout est dans `memory.json` du dossier de
+  données, lisible et modifiable ; un fichier abîmé est mis de côté, jamais écrasé.
+
 ## Contrôle de la machine
 
 Au-delà des applications et du son, Jarvis touche à l'ordinateur lui-même. Tout marche sur **macOS et

@@ -21,9 +21,10 @@ class FakeBrowser:
     def __init__(self, folder: Path, calls: Path):
         self.calls = calls
         self.ids = itertools.count(1)
+        # encoding explicite : Node écrit en UTF-8, Windows lirait sinon en cp1252 (« Vidéo » abîmé).
         self.process = subprocess.Popen([shutil.which("node"), str(HARNESS), str(folder), str(calls)],
                                         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                        text=True, bufsize=1)
+                                        text=True, encoding="utf-8", errors="replace", bufsize=1)
         self.hello = self._read()
 
     def _read(self) -> dict:

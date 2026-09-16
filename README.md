@@ -23,6 +23,16 @@ MacBook Air M5 16 Go, modèles par défaut, `uv run jarvis bench` :
 | Voix naturelle Pocket TTS : premier son | ~150-250 ms (Piper : ~55 ms) |
 | **Fin de ta phrase → première syllabe** | **~1,7-2 s** pour une question, **~1-1,5 s** pour une commande |
 
+Ce que Jarvis occupe pendant ce temps, mesuré sur ce Mac :
+
+| Ressource | Valeur |
+|---|---|
+| Mémoire de Jarvis (écoute, transcription, voix) | 2,6 Go |
+| Mémoire du modèle local, dans Ollama | 4,7 Go |
+| Processeur en veille | 7 à 8 % d'un cœur |
+| Processeur pendant que Jarvis parle | environ 1,5 cœur |
+| Une transcription de 3 secondes | 380 ms |
+
 Les commandes courantes sur le PC ne passent pas par le LLM : elles répondent aussi vite
 que l'heure ou la date.
 
@@ -419,8 +429,12 @@ src/jarvis/
 - **Micro perdu** (débranché, pris par une autre application, session verrouillée) : Jarvis le dit au
   bout de trois secondes et rouvre le flux tout seul toutes les cinq secondes jusqu'à ce qu'il revienne.
   Il ne réinitialise pas PortAudio pour autant : mesuré, cela couperait sa propre voix.
-- **Consommation en veille** : 1,3 % d'un cœur, presque entièrement le modèle du mot d'activation
-  (mel-spectrogramme ONNX). Il n'y a rien à y gagner.
+- **Consommation en veille** : 1,4 s de processeur par 20 s d'écoute, soit **7 à 8 % d'un cœur** sur un
+  MacBook Air M3. Presque tout est dans le modèle du mot d'activation : recevoir l'audio et publier les
+  niveaux ne coûtent que 0,7 %. Il n'y a donc rien à gagner côté code. (Une première mesure annonçait
+  1,3 % : elle traitait l'audio en boucle serrée, donc sur un cœur de performance à pleine fréquence.
+  En vrai, le travail est étalé dans le temps et tombe sur un cœur d'efficacité, plus lent. La quantité
+  de calcul est la même, la part d'un cœur non.)
 - **Pas d'annulation d'écho** : sans casque, le micro entend Jarvis. Un garde-fou ignore
   ce qu'il vient de dire et la coupure passe par « Hey Jarvis ».
 - **Windows** : validé par la CI (installation, lint, tests) mais pas encore sur une vraie

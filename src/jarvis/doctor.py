@@ -71,6 +71,20 @@ def doctor(cfg: Config) -> int:
                 " (macOS demandera « Surveillance de l'entrée » au premier lancement)" if IS_MAC else ""))
         except ValueError as exc:
             line("fail", "Raccourci clavier", str(exc))
+    if cfg.agenda.sources:
+        from .agenda import Agenda, masked
+        checker = Agenda(path=models_dir().parent / "agenda-doctor.json", sources=cfg.agenda.sources)
+        for index, source in enumerate(cfg.agenda.sources, 1):
+            single = Agenda(path=checker.path, sources=[source])
+            try:
+                from datetime import datetime, timedelta
+                count = len(single._external(datetime.now(), datetime.now() + timedelta(days=30)))
+                line("ok", f"Agenda {index}", f"{masked(source)} : {count} événements dans les 30 prochains jours")
+            except Exception as exc:  # noqa: BLE001
+                line("warn", f"Agenda {index}", f"{masked(source)} illisible : {exc}")
+    else:
+        line("ok", "Agenda", "celui de Jarvis seulement ; ajoute l'adresse iCal de Google, Outlook ou iCloud dans "
+             "config.yaml (agenda.sources) pour lire le tien")
     from .automations import Automations
     try:
         checker = Automations(path=models_dir().parent / "automations.json")

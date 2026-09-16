@@ -124,6 +124,38 @@ Ensuite, « comment s'appelle ma sœur ? » répond « Léa », sans que tu le r
 - Quarante souvenirs au plus, le plus ancien laisse la place. Tout est dans `memory.json` du dossier de
   données, lisible et modifiable ; un fichier abîmé est mis de côté, jamais écrasé.
 
+## Agenda
+
+| Tu dis | Effet |
+|---|---|
+| « qu'est-ce que j'ai demain ? », « …de prévu jeudi ? » | le programme du jour |
+| « qu'est-ce que j'ai cette semaine ? » | les sept prochains jours |
+| « c'est quoi mon prochain rendez-vous ? » | le prochain, avec le jour |
+| « est-ce que je suis libre demain à 15 heures ? » | libre, ou ce qui occupe ce créneau |
+| « ajoute rendez-vous chez le dentiste jeudi à 14 heures » | l'ajoute à l'agenda de Jarvis |
+| « je dois voir le dentiste vendredi à 11 heures, tu peux le noter ? » | idem, la demande en fin de phrase |
+| « supprime le rendez-vous chez le dentiste » | le retire |
+
+- **Rappel à voix haute dix minutes avant** chaque rendez-vous (`agenda.remind_minutes`, 0 pour aucun).
+- **Tes agendas Google, Outlook ou iCloud sont lus**, sans connexion à ton compte ni mot de passe : colle
+  leur adresse iCal privée dans `config.yaml`. Google : Paramètres › ton agenda › « Adresse secrète au
+  format iCal » ; Outlook : Paramètres › Calendrier › Calendriers partagés › Publier ; iCloud : partager
+  l'agenda en « Calendrier public ».
+
+```yaml
+agenda:
+  sources:
+    - https://calendar.google.com/calendar/ical/…/private-…/basic.ics
+  remind_minutes: 10
+```
+
+- Fuseaux horaires, heures universelles, **récurrences et leurs exceptions**, journées entières : gérés
+  par `icalendar` et `recurring-ical-events`, vérifiés sur un export au format de Google.
+- Les agendas externes sont **en lecture seule** : un rendez-vous Google se retire chez Google. Hors
+  ligne, Jarvis garde la dernière version lue.
+- **L'adresse iCal donne accès à ton agenda** : elle n'apparaît jamais dans le journal (seul l'hôte y
+  figure) et n'est jamais envoyée au modèle.
+
 ## Automatisations
 
 Jarvis agit tout seul, à une heure ou quand quelque chose se passe :

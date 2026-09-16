@@ -8,6 +8,7 @@ requires-python = ">=3.12"
 dependencies = [
     "faster-whisper>=1.2.1 ; platform_machine != 'arm64' or sys_platform != 'darwin'",
     "httpx>=0.28.1",
+    "icalendar>=7.3.0",
     "mcp>=1.20",
     "mlx-whisper>=0.4.3 ; platform_machine == 'arm64' and sys_platform == 'darwin'",
     "mss>=10.2.0",
@@ -21,6 +22,7 @@ dependencies = [
     "pyobjc-framework-quartz>=12.2.2 ; sys_platform == 'darwin'",
     "pywebview>=6.2.1",
     "pyyaml>=6.0.3",
+    "recurring-ical-events>=3.8.2",
     "sounddevice>=0.5.6",
     "soxr>=1.1.0",
     "uiautomation>=2.0.29 ; sys_platform == 'win32'",

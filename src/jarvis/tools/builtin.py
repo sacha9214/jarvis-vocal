@@ -1,8 +1,10 @@
 """Outils intégrés, macOS et Windows."""
 from __future__ import annotations
 
+from .. import agenda as agenda_module
 from .. import automations as automations_module
-from ..automations import Automations
+from ..agenda import Agenda
+from ..automations import Automations, spoken_time
 from ..memory import Memory
 from ..system import (
     apps,
@@ -491,14 +493,11 @@ def _say_files(found: list) -> str:
     return f"J'ai trouvé {len(found)} fichier" + ("s" if len(found) > 1 else "") + " :\n" + "\n".join(lines)
 
 
-@tool("files", "Fichiers de l'ordinateur : find (chercher, query ; content vrai pour chercher dans le TEXTE des "
-      "fichiers, par exemple « le document qui parle de la facture EDF » ; kind facultatif document, image ou "
-      "tableur), open (ouvrir : query, ou index d'un résultat précédent), reveal (montrer dans le Finder ou "
-      "l'Explorateur), new_folder (créer un dossier, query = son nom), disk (place libre), trash (corbeille).",
+@tool("files", "Fichiers : find (query ; content=vrai pour chercher dans leur texte), open (query ou index d'un "
+      "résultat), reveal (montrer dans son dossier), new_folder (query=nom), disk (place libre), trash (corbeille).",
       {"action": {"type": "string", "enum": FILE_ACTIONS}, "query": {"type": "string"},
-       "index": {"type": "integer", "description": "numéro d'un fichier déjà trouvé"},
-       "kind": {"type": "string", "enum": ["document", "image", "tableur"]},
-       "content": {"type": "boolean", "description": "chercher dans le texte des fichiers"}}, ("action",))
+       "index": {"type": "integer"}, "kind": {"type": "string", "enum": ["document", "image", "tableur"]},
+       "content": {"type": "boolean"}}, ("action",))
 def files_tool(action: str, query: str = "", index: int | None = None, kind: str = "",
                content: bool = False) -> str:
     global _FOUND
@@ -647,9 +646,8 @@ def calculate_tool(expression: str) -> str:
 MEMORY = Memory()
 
 
-@tool("memory", "Mémoire de long terme sur l'utilisateur : remember (retenir un fait court, text), forget (oublier "
-      "ce qui ressemble à text), list (réciter ce que tu sais), forget_all (tout effacer). À utiliser quand "
-      "on te dit « retiens que », « souviens-toi », « oublie que », ou pour noter une préférence durable.",
+@tool("memory", "Mémoire durable sur l'utilisateur : remember (text), forget (text), list, forget_all. Pour « retiens "
+      "que », « oublie que ».",
       {"action": {"type": "string", "enum": ["remember", "forget", "list", "forget_all"]},
        "text": {"type": "string"}}, ("action",))
 def memory_tool(action: str, text: str = "") -> str:
@@ -667,9 +665,8 @@ def memory_tool(action: str, text: str = "") -> str:
 AUTOMATIONS = Automations()
 
 
-@tool("automations", "Automatisations : create (programmer, text = la phrase entière, par ex. « tous les jours à "
-      "8 heures, rappelle-moi de prendre mes médicaments » ou « quand j'ouvre Spotify, mets le volume à 40 »), "
-      "list (les réciter), remove (supprimer celle qui ressemble à text), clear (tout supprimer).",
+@tool("automations", "Rappels et commandes programmés : create (text=la phrase entière, « tous les jours à 8 heures, "
+      "rappelle-moi de… », « quand j'ouvre X, … »), list, remove (text), clear.",
       {"action": {"type": "string", "enum": ["create", "list", "remove", "clear"]}, "text": {"type": "string"}},
       ("action",))
 def automations_tool(action: str, text: str = "") -> str:
@@ -683,3 +680,51 @@ def automations_tool(action: str, text: str = "") -> str:
     if action == "clear":
         return AUTOMATIONS.clear()
     return AUTOMATIONS.recite()
+
+
+# -- agenda : rendez-vous de Jarvis et agendas externes (iCal)
+
+AGENDA = Agenda()
+
+
+@tool("agenda", "Agenda : day (programme d'un jour, day=« demain », « jeudi »…), week, next (prochain rendez-vous), "
+      "free (libre ? text=jour et heure), add (text=titre, jour et heure), remove (text).",
+      {"action": {"type": "string", "enum": ["day", "week", "next", "free", "add", "remove"]},
+       "day": {"type": "string"}, "text": {"type": "string"}}, ("action",))
+def agenda_tool(action: str, day: str = "", text: str = "") -> str:
+    from datetime import datetime
+
+    from ..automations import parse_time
+
+    now = datetime.now()
+    today = now.date()
+    if action == "week":
+        return AGENDA.recite_week(today)
+    if action == "next":
+        event = AGENDA.next_event(now)
+        if event is None:
+            return "Aucun rendez-vous de prévu dans les deux prochains mois."
+        return "Ton prochain rendez-vous : " + agenda_module.spoken_event(event, today, with_day=True) + "."
+    if action == "add":
+        parsed = agenda_module.parse_new_event(text, now)
+        if parsed is None:
+            return "Dis-moi le rendez-vous, le jour et l'heure, par exemple « dentiste jeudi à 14 heures »."
+        title, start = parsed
+        if start < now:
+            return "Cette heure-là est déjà passée."
+        AGENDA.add(title, start)
+        return (f"C'est ajouté : {title}, {agenda_module.spoken_day(start.date(), today)} à "
+                f"{spoken_time(start.strftime('%H:%M'))}.")
+    if action == "remove":
+        removed = AGENDA.remove(text)
+        if removed is None:
+            return "Je ne trouve pas ce rendez-vous dans mon agenda. Ceux de Google ou Outlook se retirent chez eux."
+        return f"J'ai supprimé {removed.title}, {agenda_module.spoken_event(removed, today, with_day=True)}."
+    target = agenda_module.parse_day(day or text, today)
+    if action == "free":
+        at = parse_time(text or day)
+        if target is None or at is None:
+            return "Dis-moi le jour et l'heure."
+        hour, minute = (int(p) for p in at.split(":"))
+        return AGENDA.is_free(datetime.combine(target, datetime.min.time()).replace(hour=hour, minute=minute), today)
+    return AGENDA.recite_day(target or today, today)

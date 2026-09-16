@@ -107,6 +107,13 @@ class ReviewConfig:
 
 
 @dataclass
+class AgendaConfig:
+    # Adresses iCal privées (Google, Outlook, iCloud) ou fichiers .ics : lues, jamais modifiées.
+    sources: list[str] = field(default_factory=list)
+    remind_minutes: int = 10       # rappel à voix haute avant chaque rendez-vous ; 0 = aucun rappel
+
+
+@dataclass
 class TtsConfig:
     backend: str = "auto"          # auto (Pocket TTS, Piper si la machine est trop lente) | pocket | piper
     voice: str = "fantine"         # Pocket TTS : fantine (la plus fiable), cosette, marius, jean… ou un .wav
@@ -141,6 +148,7 @@ class Config:
     screen: ScreenConfig = field(default_factory=ScreenConfig)
     browser: BrowserConfig = field(default_factory=BrowserConfig)
     review: ReviewConfig = field(default_factory=ReviewConfig)
+    agenda: AgendaConfig = field(default_factory=AgendaConfig)
     tts: TtsConfig = field(default_factory=TtsConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     ui: UiConfig = field(default_factory=UiConfig)

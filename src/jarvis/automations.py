@@ -446,15 +446,16 @@ def _action_ok(action: str) -> bool:
     return parse(action) is not None
 
 
-def split_when_action(text: str) -> tuple[str, str] | None:
+def split_when_action(text: str, strict: bool = True) -> tuple[str, str] | None:
     """Sépare « quand » et « quoi ». Avec une virgule c'est direct ; sans (Whisper l'oublie souvent), on coupe au
     premier endroit où la fin de la phrase est une action que Jarvis comprend."""
     raw = text.strip().rstrip(".!?").strip()
     opened = re.match(r"^quand\s+j['’]?\s*ouvre\s+(?P<rest>.+)$", raw, re.IGNORECASE)
     if "," in raw:
         when, action = (part.strip() for part in raw.split(",", 1))
-        if re.match(r"^quand\s+j['’]?\s*ouvre\s+\S", when, re.IGNORECASE) or (
-                parse_time(when) and _CUE.search(soft(when))):
+        # La fin doit être une action : « demain à 14 h, c'est l'anniversaire de Léa » n'en est pas une.
+        if (re.match(r"^quand\s+j['’]?\s*ouvre\s+\S", when, re.IGNORECASE) or (
+                parse_time(when) and _CUE.search(soft(when)))) and (not strict or _action_ok(action)):
             return when, action
     if opened:
         words = opened["rest"].split()
@@ -475,7 +476,8 @@ def split_when_action(text: str) -> tuple[str, str] | None:
 
 def from_voice(text: str, now: datetime) -> tuple[Automation | None, str]:
     """(automatisation, message d'erreur). « tous les jours à 8 h, rappelle-moi de… », « quand j'ouvre X, … »."""
-    parts = split_when_action(text)
+    # Souple ici : on sait déjà qu'il s'agit d'une automatisation, et une action incomprise mérite un message précis.
+    parts = split_when_action(text, strict=False)
     if parts is None:
         return None, "Dis quand, puis quoi, par exemple « tous les jours à 8 heures, rappelle-moi de… »."
     when, action = parts

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 from . import assets, custom
 from . import config as config_module
+from .agenda import Agenda
 from .audio.vad import SileroVad
 from .audio.wakeword import WakeWord
 from .automations import Automations
@@ -98,6 +99,7 @@ class Components:
     editor: EditorController | None = None
     memory: Memory | None = None
     automations: Automations | None = None
+    agenda: Agenda | None = None
 
 
 def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, executor: ToolExecutor | None = None,
@@ -133,6 +135,9 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
     desktop = DesktopController(foreground)     # UI Automation ou AX chargés au premier usage
     builtin.DESKTOP = desktop
     memory = builtin.MEMORY
+    agenda = builtin.AGENDA
+    agenda.sources = list(cfg.agenda.sources)
+    agenda.remind_minutes = cfg.agenda.remind_minutes
     automations = builtin.AUTOMATIONS
     automations.load_config(cfg.automations)            # erreurs de config.yaml dites au démarrage
     foreground.on_switch = automations.app_opened
@@ -163,4 +168,4 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
         stt = timed("Transcription", warm_stt)
         wakeword, vad = ears_future.result()
         return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server, screen,
-                          foreground, browser, review, desktop, editor, memory, automations)
+                          foreground, browser, review, desktop, editor, memory, automations, agenda)

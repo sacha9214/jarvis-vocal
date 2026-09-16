@@ -176,6 +176,9 @@ class Assistant:
             self.parts.screen.start()
         if getattr(self.parts, "automations", None) is not None:
             self.parts.automations.start()      # après le branchement de run_action : « au démarrage » part ici
+        if getattr(self.parts, "agenda", None) is not None:
+            self.parts.agenda.announce = self.announce
+            self.parts.agenda.start()
         LOG.info("À l'écoute : dis « Hey Jarvis ». %s", self.parts.llm.describe())
         for frame in frames:
             if self._tick(frame, frames):

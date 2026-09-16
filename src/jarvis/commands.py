@@ -418,6 +418,30 @@ def _browser(plain: str, soft: str) -> Command | None:
     return None
 
 
+def _agenda(plain: str, soft: str) -> Command | None:
+    day = (r"(?P<day>aujourd hui|demain|apres demain|ce soir|cette semaine|lundi|mardi|mercredi|jeudi|vendredi"
+           r"|samedi|dimanche|le \d{1,2}(?: [a-z]+)?|lundi prochain|mardi prochain|mercredi prochain|jeudi prochain"
+           r"|vendredi prochain|samedi prochain|dimanche prochain)")
+    if match := re.fullmatch(rf"(?:qu est ce que j ai|j ai quoi|qu est ce qui est prevu|c est quoi mon programme"
+                             rf"|quel est mon programme|mon agenda|qu est ce que j ai de prevu|montre moi mon agenda)"
+                             rf"(?: de prevu)?(?: pour)? {day}(?: de prevu)?", plain):
+        if match["day"] == "cette semaine":
+            return Command("agenda", {"action": "week"})
+        return Command("agenda", {"action": "day", "day": _span(soft, match, "day")})
+    if re.fullmatch(r"(?:qu est ce que j ai|mon agenda|qu est ce qui est prevu|mon programme)(?: de prevu)?"
+                    r"(?: pour)? (?:cette semaine|la semaine)", plain):
+        return Command("agenda", {"action": "week"})
+    if re.fullmatch(r"(?:c est quoi|c est quand|quel est|a quelle heure est) (?:mon|le) prochain (?:rendez vous|rdv"
+                    r"|evenement|rendez vous dans mon agenda)", plain):
+        return Command("agenda", {"action": "next"})
+    if match := re.fullmatch(r"(?:est ce que )?je suis (?:libre|dispo|disponible) (?P<t>.+)", plain):
+        return Command("agenda", {"action": "free", "text": _span(soft, match, "t")})
+    if match := re.fullmatch(r"(?:supprime|annule|efface|enleve) (?:le |mon )?(?:rendez vous|rdv|evenement)"
+                             r"(?: de| du| des| d| avec| chez)? (?P<t>.+)", plain):
+        return Command("agenda", {"action": "remove", "text": _span(soft, match, "t")})
+    return None
+
+
 def _automations(plain: str, soft: str) -> Command | None:
     if re.fullmatch(r"(?:quelles sont|liste|montre moi|dis moi|c est quoi) (?:mes )?(?:automatisations|rappels"
                     r"|routines|taches programmees)|qu est ce que (?:tu as|j ai) programme", plain):
@@ -550,18 +574,25 @@ def _machine(plain: str, soft: str) -> Command | None:
     return None
 
 
-_RULES = (_memory, _automations, _power, _browser, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
-          _folder, _open)
-_APP_RULES = (_memory, _automations, _power, _app, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
-              _folder, _open)
-_CODE_RULES = (_memory, _automations, _power, _code, _app, _volume, _media, _timer, _machine, _search, _review, _screen,
-               _close, _folder, _open)
+_FIRST = (_memory, _automations, _agenda, _power)
+_LAST = (_volume, _media, _timer, _machine, _search, _review, _screen, _close, _folder, _open)
+_RULES = (*_FIRST, _browser, *_LAST)
+_APP_RULES = (*_FIRST, _app, *_LAST)
+_CODE_RULES = (*_FIRST, _code, _app, *_LAST)
 
 
+# « ajoute rendez-vous chez le dentiste jeudi à 14 heures » : « mets » seulement s'il s'agit de l'agenda.
+_AGENDA_ADD = re.compile(r"^\W*(?:(?:ajoute|inscris|programme|cr[ée]e|note)\b(?!\s+que\b)"
+                         r"|mets\b.*\bagenda\b)", re.IGNORECASE)
+# « je dois voir le dentiste vendredi à 11 heures, tu peux le noter ? » : la demande vient après.
+_AGENDA_AFTER = re.compile(r"^(?P<body>.+?)[\s,]+(?:tu peux le noter|note[\s-]le|tu le notes|mets[\s-]le dans"
+                           r"\s+(?:mon|l['’])\s*agenda|ajoute[\s-]le(?:\s+(?:à|a)\s+(?:mon|l['’])\s*agenda)?)\W*$",
+                           re.IGNORECASE)
+_AGENDA_INTENT = re.compile(r"^(?:je dois|il faut que j['’]?(?:aille|voie)?|j['’]ai|je vais)\s+", re.IGNORECASE)
 # Sur le texte d'origine : un souvenir garde ses tirets, apostrophes et majuscules (« jarvis-vocal », « Léa »).
 _REMEMBER = re.compile(
     r"^\W*(?:(?:hey|ok|dis)\W+)?(?:jarvis\W+)?(?:(?:est-ce que\W+)?(?:tu peux|peux-tu)\W+)?"
-    r"(?:retiens|retenir|souviens[\s-]toi|te souvenir|rappelle[\s-]toi|n['’]oublie pas|note|noter"
+    r"(?:retiens|retenir|souviens[\s-]toi|te souvenir|rappelle[\s-]toi|te rappeler|n['’]oublie pas|note|noter"
     r"|m[ée]morise|m[ée]moriser|enregistre)"
     r"(?:\s+bien)?\s+(?:que\s+|qu['’]\s*)(?P<t>.+?)[\s.!?]*$", re.IGNORECASE)
 
@@ -570,9 +601,22 @@ def parse(text: str, context: str = "") -> Command | None:
     """`context` : « browser », « code », « app » ou « » (inconnu : les règles du navigateur s'appliquent)."""
     if match := _REMEMBER.match(text.strip()):
         return Command("memory", {"action": "remember", "text": match["t"].strip()})
+    if match := _AGENDA_AFTER.match(text.strip()):          # « …, tu peux le noter ? » : l'agenda d'abord
+        from datetime import datetime
+
+        from .agenda import parse_new_event
+        body = _AGENDA_INTENT.sub("", match["body"]).strip()
+        if parse_new_event("ajoute " + body, datetime.now()) is not None:
+            return Command("agenda", {"action": "add", "text": "ajoute " + body})
     from .automations import is_automation_request
     if is_automation_request(text):
         return Command("automations", {"action": "create", "text": text.strip()})
+    if _AGENDA_ADD.match(text.strip()):
+        from datetime import datetime
+
+        from .agenda import parse_new_event
+        if parse_new_event(text, datetime.now()) is not None:
+            return Command("agenda", {"action": "add", "text": text.strip()})
     plain, soft = _aligned(text)
     if lead := _LEAD.match(plain):
         plain, soft = plain[lead.end():], soft[lead.end():]

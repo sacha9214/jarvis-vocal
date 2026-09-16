@@ -240,6 +240,66 @@ modèles d'écoute. Les modèles d'écoute et la voix Piper sont vérifiés par 
 **Ollama doit tourner** pour le mode local et l'analyse d'écran (application Ollama, ou
 `brew services start ollama` sur Mac). Le mode Claude, la voix et l'interface fonctionnent sans.
 
+## LLM sur une autre machine du réseau
+
+Le modèle local peut tourner sur un autre ordinateur (un PC avec une bonne carte graphique, par
+exemple) : Jarvis lui parle par le réseau, le micro, la voix et les captures restent ici.
+
+1. Sur la machine qui héberge le modèle : `ollama pull qwen3.5:9b`, puis fais écouter Ollama sur le
+   réseau avec la variable d'environnement `OLLAMA_HOST=0.0.0.0` (Windows : dans les variables
+   d'environnement, puis relance Ollama ; macOS : `launchctl setenv OLLAMA_HOST 0.0.0.0` et relance
+   l'application) et ouvre le port 11434 dans son pare-feu.
+2. Ici, dans les réglages (« Serveur Ollama ») ou dans `config.yaml` :
+
+```yaml
+llm:
+  host: http://192.168.1.20:11434
+  model: auto          # prend le plus gros qwen3.5 du serveur ; ou un nom précis
+```
+
+- `jarvis doctor` dit si le serveur répond et quel modèle est choisi ; un modèle absent est signalé
+  avec la liste de ceux qui existent là-bas.
+- **Les captures d'écran ne partent pas sur le réseau** : l'analyse d'écran garde l'Ollama de cette
+  machine. Pour l'envoyer aussi au serveur distant, mets son adresse dans `screen.host` (réglage
+  « Serveur Ollama pour l'écran »), en connaissance de cause.
+- La review de code locale et les questions passent par le serveur distant : c'est du texte.
+
+## Commandes personnalisées
+
+Tes phrases, tes actions, dans `config.yaml` (`jarvis doctor` valide la section) :
+
+```yaml
+commands:
+  - name: projet jarvis
+    say: ["ouvre mon projet", "lance le projet jarvis"]
+    run: code ~/Desktop/jarvis-vocal
+  - name: note
+    say: ["note *", "prends note de *"]
+    run: echo "{text}" >> ~/Desktop/notes.txt
+    reply: "C'est noté, {text}."
+  - name: réunion
+    say: ["lance la réunion"]
+    open: https://meet.google.com/abc-defg-hij
+  - name: capture
+    say: ["fais une capture"]
+    keys: ctrl+shift+4
+    confirm: true
+  - name: thé
+    say: ["lance le thé"]
+    tool: set_timer
+    args: { seconds: 180, label: thé }
+```
+
+- Une action par commande : `run` (ligne de commande, lancée dans ton dossier personnel), `open`
+  (adresse web, fichier ou dossier), `keys` (raccourci dans l'application au premier plan) ou `tool`
+  (une action de Jarvis, avec `args`).
+- `*` dans une phrase capture ce que tu dis à cet endroit, disponible en `{text}` dans `run`, `open`,
+  `args` et `reply` (guillemets et `$` retirés avant le shell).
+- `confirm: true` fait demander confirmation (N2, mémorisable par « toujours ») ; `speak_output: true`
+  lit la sortie de la commande (20 s maximum).
+- Les phrases sont reconnues **sans LLM**, accents et ponctuation ignorés. Le modèle les voit aussi
+  comme outils `custom_<nom>` : « tu peux ouvrir mon projet ? » marche même sans la phrase exacte.
+
 ## Utiliser ton abonnement Claude
 
 1. Installe [Claude Code](https://code.claude.com) et connecte-toi une fois, dans ton
@@ -296,6 +356,7 @@ src/jarvis/
   vision/     analyse de l'écran par le modèle local
   ui/         interface : page, API des réglages, fenêtre native
   commands.py commandes vocales reconnues sans LLM
+  custom.py   commandes personnalisées de config.yaml (phrases → shell, ouverture, raccourci, outil)
   pipeline.py la boucle de conversation
   server.py   serveur local (127.0.0.1, jeton de session)
 ```

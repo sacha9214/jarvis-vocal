@@ -35,11 +35,23 @@ class SttConfig:
     language: str = "fr"
 
 
+LOCAL_OLLAMA = "http://127.0.0.1:11434"
+
+
+def is_local_host(host: str) -> bool:
+    name = host.split("://", 1)[-1].split("/", 1)[0].rsplit(":", 1)[0].strip("[]").lower()
+    return name in ("127.0.0.1", "localhost", "::1", "0.0.0.0", "")
+
+
 @dataclass
 class LlmConfig:
     backend: str = "ollama"        # moteur au démarrage : ollama (local) | claude
-    model: str = "auto"            # modèle Ollama
-    host: str = "http://127.0.0.1:11434"
+    model: str = "auto"            # modèle Ollama ; « auto » sur un hôte distant = le premier qwen du serveur
+    host: str = LOCAL_OLLAMA       # Ollama d'une autre machine du réseau : http://192.168.1.20:11434
+
+    @property
+    def remote(self) -> bool:
+        return not is_local_host(self.host)
     num_ctx: int = 8192            # mesuré : outils + prompt = 2 900 tokens en contexte éditeur, 4 096 débordait
     max_tokens: int = 320
     temperature: float = 0.6
@@ -72,6 +84,8 @@ class ScreenConfig:
     min_free_gb: float = 1.5       # en dessous de cette mémoire libre, l'analyse attend (le Mac swappe sinon)
     max_width: int = 1024          # largeur de la capture envoyée au modèle (plus petit = plus rapide)
     model: str = ""                # vide = le modèle Ollama principal (il doit gérer les images)
+    host: str = ""                 # vide = Ollama LOCAL, même si le LLM est sur une autre machine : les captures
+                                   # d'écran ne quittent pas cet ordinateur sauf si tu mets ici l'hôte distant
 
 
 @dataclass
@@ -124,6 +138,7 @@ class Config:
     tts: TtsConfig = field(default_factory=TtsConfig)
     audio: AudioConfig = field(default_factory=AudioConfig)
     ui: UiConfig = field(default_factory=UiConfig)
+    commands: list[dict[str, Any]] = field(default_factory=list)   # commandes personnalisées (voir jarvis.custom)
 
     def resolve(self, hw: hardware.Hardware | None = None) -> Config:
         """Remplace les « auto » par le plan recommandé pour ce matériel."""
@@ -141,7 +156,7 @@ class Config:
         if stt.compute_type == "auto":
             stt.compute_type = plan.stt_compute if same_backend else (
                 "float16" if stt.device in ("cuda", "metal") else "int8")
-        if self.llm.model == "auto":
+        if self.llm.model == "auto" and not self.llm.remote:   # distant : choisi parmi les modèles du serveur
             self.llm.model = plan.llm_model
         return self
 

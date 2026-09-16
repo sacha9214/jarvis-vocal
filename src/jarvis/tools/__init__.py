@@ -103,6 +103,7 @@ class ToolExecutor:
         self.confirm = confirm
         self.on_result = on_result
         self.on_always = on_always
+        self.custom = None          # jarvis.custom.Matcher : phrases personnalisées reconnues sans LLM
 
     def tools(self, context: str | None = None) -> list[Tool]:
         """Outils disponibles ; avec un contexte, seulement les généraux et ceux de ce contexte."""

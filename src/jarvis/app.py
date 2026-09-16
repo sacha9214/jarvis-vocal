@@ -7,7 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
-from . import assets
+from . import assets, custom
 from . import config as config_module
 from .audio.vad import SileroVad
 from .audio.wakeword import WakeWord
@@ -64,7 +64,10 @@ def build_executor(cfg: Config) -> ToolExecutor:
     def remember(name: str) -> None:
         path = config_module.update_file({"tools": {"always_allow": list(cfg.tools.always_allow)}})
         LOG.info("« %s » est désormais autorisé sans confirmation (enregistré dans %s).", name, path)
-    return ToolExecutor(cfg.tools, on_always=remember)
+    matcher = custom.setup(cfg)          # avant tout : les commandes personnalisées sont aussi des outils
+    executor = ToolExecutor(cfg.tools, on_always=remember)
+    executor.custom = matcher
+    return executor
 
 
 def claude_task(cfg: Config, llm: Router) -> Callable[[str, str, list[str]], str]:

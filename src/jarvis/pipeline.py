@@ -235,8 +235,14 @@ class Assistant:
             return self.parts.llm.describe()
         if quick := fastpath.reply(text):
             return quick
-        if self.cfg.tools.enabled and (command := commands.parse(text, self._context())):
-            return self.parts.executor.run(command.tool, command.arguments)
+        if not self.cfg.tools.enabled:
+            return None
+        executor = self.parts.executor
+        custom = getattr(executor, "custom", None)
+        if custom and (command := custom.match(text)):          # tes phrases passent avant les règles
+            return executor.run(command.tool, command.arguments)
+        if command := commands.parse(text, self._context()):
+            return executor.run(command.tool, command.arguments)
         return None
 
     def _answer(self, text: str, timer: TurnTimer, frames: Iterator[np.ndarray]) -> bool:

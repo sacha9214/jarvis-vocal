@@ -92,6 +92,13 @@ class Controller:
         elif key == "llm.backend":
             llm.switch(CLAUDE if value == "claude" else LOCAL)
             self._publish_engine()
+        elif key == "llm.host":
+            local = llm.backends[LOCAL]
+            local.set_host(str(value))
+            local.model = self.cfg.llm.model = "auto" if self.cfg.llm.remote else self.cfg.llm.model
+            local.check()                                      # modèle choisi ou erreur claire tout de suite
+            threading.Thread(target=local.warmup, args=(llm._system or "", llm.tools), daemon=True).start()
+            self._publish_engine()
         elif key == "llm.model":
             local = llm.backends[LOCAL]
             local.model = str(value)

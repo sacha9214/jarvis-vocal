@@ -71,6 +71,9 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
               help="Seulement si l'écran a changé, et jamais pendant une conversation."),
         Field("screen.max_width", "Précision de la capture", "slider", min=640, max=1600, step=64, unit="px",
               help="Plus large : texte mieux lu, analyse plus lente."),
+        Field("screen.host", "Serveur Ollama pour l'écran", "text", live=False,
+              help="Vide : l'Ollama de cette machine, les captures ne partent jamais sur le réseau. Mets l'adresse "
+                   "du serveur distant seulement si tu acceptes de lui envoyer tes captures."),
         Field("screen.min_free_gb", "Mémoire libre minimale", "slider", min=0, max=4, step=0.5, unit="Go",
               help="En dessous, l'analyse attend : elle ferait swapper la machine. 0 pour ne jamais attendre."),
     ]),
@@ -89,8 +92,12 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
               help="En dessous de 1, Piper parle plus vite."),
     ]),
     ("engines", "Moteurs", "Réglages fins des modèles.", [
-        Field("llm.model", "Modèle local (Ollama)", "text",
-              help="Doit être installé : `ollama pull <modèle>`. Ex. qwen3.5:4b-mlx, qwen3.5:2b."),
+        Field("llm.host", "Serveur Ollama", "text",
+              help="Cette machine (http://127.0.0.1:11434) ou une autre du réseau, ex. http://192.168.1.20:11434 "
+                   "(Ollama doit y écouter avec OLLAMA_HOST=0.0.0.0)."),
+        Field("llm.model", "Modèle Ollama", "text",
+              help="Doit être installé sur le serveur : `ollama pull <modèle>`. Ex. qwen3.5:4b-mlx, qwen3.5:9b. "
+                   "« auto » sur un serveur distant prend le plus gros qwen3.5 présent."),
         Field("llm.temperature", "Créativité du modèle local", "slider", min=0, max=1.2, step=0.05),
         Field("llm.max_tokens", "Longueur maximale d'une réponse", "slider",
               min=64, max=1024, step=16, unit="tokens"),

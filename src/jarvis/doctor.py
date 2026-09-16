@@ -32,7 +32,8 @@ def doctor(cfg: Config) -> int:
         line("fail", "Python du Store", paths.STORE_PYTHON_HINT)
 
     from .llm import load_backend
-    engines = (("ollama", f"LLM local (Ollama {cfg.llm.model})"),
+    where = f"Ollama distant {cfg.llm.host}" if cfg.llm.remote else "Ollama"
+    engines = (("ollama", f"LLM {'local ' if not cfg.llm.remote else ''}({where}, {cfg.llm.model})"),
                ("claude", f"Claude via Claude Code ({cfg.claude.model}, {cfg.claude.auth})"))
     for name, label in engines:
         active = name == cfg.llm.backend
@@ -56,8 +57,19 @@ def doctor(cfg: Config) -> int:
          cfg.tts.piper_voice if piper_ok else "pas encore téléchargée → `jarvis setup`")
 
     if cfg.screen.enabled:
-        line("ok", "Analyse d'écran", f"toutes les {cfg.screen.interval_s:g} s au plus, modèle local "
-             f"{cfg.screen.model or cfg.llm.model}")
+        from .vision.screen import screen_host
+        host = screen_host(cfg)
+        from .config import is_local_host
+        line("ok" if is_local_host(host) else "warn", "Analyse d'écran",
+             f"toutes les {cfg.screen.interval_s:g} s au plus, modèle {cfg.screen.model or cfg.llm.model} sur "
+             + ("cette machine" if is_local_host(host) else f"{host} : tes captures partent sur le réseau"))
+    from .custom import load_commands
+    try:
+        customs = load_commands(cfg)
+        line("ok", "Commandes personnalisées", f"{len(customs)} définies" if customs else
+             "aucune (section `commands:` de config.yaml)")
+    except ValueError as exc:
+        line("fail", "Commandes personnalisées", str(exc))
     if cfg.browser.enabled:
         built = (models_dir().parent / "extension" / "chromium" / "config.js").exists()
         line("ok" if built else "warn", "Pilotage du navigateur",

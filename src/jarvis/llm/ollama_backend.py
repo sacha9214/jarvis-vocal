@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from collections.abc import Iterator, Sequence
 from typing import Any
@@ -13,6 +14,19 @@ from ..config import LlmConfig
 from .base import Delta, Done, Event, Message, ToolCall
 
 LOG = logging.getLogger("jarvis.llm")
+
+
+def pick_model(installed: list[str]) -> str:
+    """Sur un serveur distant sans modèle imposé : le plus gros qwen3.5 présent, sinon le premier modèle."""
+    if not installed:
+        raise RuntimeError("Aucun modèle sur ce serveur Ollama : `ollama pull qwen3.5:4b` dessus.")
+    qwen = [m for m in installed if m.lower().startswith("qwen3.5")]
+    if not qwen:
+        return installed[0]
+    def size(name: str) -> float:
+        match = re.search(r":(\d+(?:\.\d+)?)b", name.lower())
+        return float(match.group(1)) if match else 0.0
+    return max(qwen, key=size)
 
 
 class OllamaLLM:
@@ -30,17 +44,31 @@ class OllamaLLM:
         return {"num_ctx": self.cfg.num_ctx, "num_predict": self.cfg.max_tokens,
                 "temperature": self.cfg.temperature, **overrides}
 
+    def set_host(self, host: str) -> None:
+        self.cfg.host = host
+        self._client = ollama.Client(host=host, timeout=httpx.Timeout(120.0, connect=3.0))
+
     def check(self) -> None:
         try:
-            installed = {m.model for m in self._client.list().models}
+            installed = [m.model for m in self._client.list().models]
         except (httpx.HTTPError, ConnectionError) as exc:
+            if self.cfg.remote:
+                raise RuntimeError(
+                    f"Ollama ne répond pas sur {self.cfg.host} ({exc}). Sur cette machine, Ollama doit écouter sur "
+                    "le réseau : variable OLLAMA_HOST=0.0.0.0, puis relance-le (et ouvre le port 11434 "
+                    "dans son pare-feu).") from exc
             raise RuntimeError(
                 f"Ollama ne répond pas sur {self.cfg.host} ({exc}). Lance l'application Ollama "
                 "ou `ollama serve`.") from exc
+        if self.model == "auto":
+            self.model = self.cfg.model = pick_model(installed)
+            LOG.info("Modèle choisi sur %s : %s", self.cfg.host, self.model)
         wanted = self.model if ":" in self.model else f"{self.model}:latest"
         if wanted not in installed:
-            raise RuntimeError(f"Modèle {self.model} absent. Installe-le : `ollama pull {self.model}` "
-                               "(ou `jarvis setup`).")
+            where = f" sur {self.cfg.host}" if self.cfg.remote else ""
+            available = f" Modèles présents{where} : {', '.join(installed)}." if installed else ""
+            raise RuntimeError(f"Modèle {self.model} absent{where}.{available} Installe-le : "
+                               f"`ollama pull {self.model}` (ou `jarvis setup`).")
 
     def warmup(self, system_prompt: str, tools: list[dict[str, Any]] | None = None) -> None:
         """Charge le modèle en mémoire et pré-remplit le cache KV du prompt système et des

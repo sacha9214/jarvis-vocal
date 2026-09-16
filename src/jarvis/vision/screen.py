@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from ..config import Config, ScreenConfig
+from ..config import LOCAL_OLLAMA, Config, ScreenConfig
 
 LOG = logging.getLogger("jarvis.screen")
 
@@ -109,11 +109,18 @@ def frontmost_app() -> str:
     return ""
 
 
+def screen_host(cfg: Config) -> str:
+    """Où partent les captures : l'Ollama de cette machine, sauf hôte explicitement choisi dans screen.host."""
+    if cfg.screen.host:
+        return cfg.screen.host
+    return LOCAL_OLLAMA if cfg.llm.remote else cfg.llm.host
+
+
 def ollama_describer(cfg: Config) -> Describer:
     import httpx
     import ollama
 
-    client = ollama.Client(host=cfg.llm.host, timeout=httpx.Timeout(120.0, connect=3.0))
+    client = ollama.Client(host=screen_host(cfg), timeout=httpx.Timeout(120.0, connect=3.0))
 
     def describe(image: bytes, prompt: str) -> str:
         response = client.chat(

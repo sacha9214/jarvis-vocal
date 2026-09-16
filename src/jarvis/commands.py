@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .desktop import parse_keys
-from .system import apps, folders, web
+from .system import apps, calc, folders, web
 
 
 @dataclass(frozen=True)
@@ -418,9 +418,102 @@ def _browser(plain: str, soft: str) -> Command | None:
     return None
 
 
-_RULES = (_power, _browser, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
-_APP_RULES = (_power, _app, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
-_CODE_RULES = (_power, _code, _app, _volume, _media, _timer, _search, _review, _screen, _close, _folder, _open)
+def _machine(plain: str, soft: str) -> Command | None:
+    """Fichiers, fenêtres, presse-papiers, réglages, capture, calcul : sans passer par le modèle."""
+    # -- fichiers
+    # « cherche le fichier X » ou « trouve mon X » : sinon c'est une recherche web, pas un fichier.
+    if match := re.fullmatch(r"(?:trouve|cherche|retrouve)(?: moi)? "
+                             r"(?:(?:le |la |les |mon |ma |mes )?(?P<kw>fichiers?|documents?|dossiers?|photos?"
+                             r"|images?) (?:de |du |d )?|(?:mon|ma|mes) )(?P<q>.+?)"
+                             r"(?: sur (?:l ordinateur|le pc|le mac|mon ordi))?", plain):
+        query = _span(soft, match, "q")
+        if len(query) >= 2 and not web.resolve_site(match["q"]):
+            word = match["kw"] or ""
+            kind = ("image" if word.startswith(("photo", "image")) else
+                    "document" if word.startswith("document") else "")
+            return Command("files", {"action": "find", "query": query, **({"kind": kind} if kind else {})})
+    if match := re.fullmatch(r"ouvre (?:le |la |mon |ma )?(?:fichier|document|photo|image) (?P<q>.+)", plain):
+        return Command("files", {"action": "open", "query": _span(soft, match, "q")})
+    if match := re.fullmatch(r"(?:ouvre|montre|affiche)(?: moi)? (?:le |la )?(?P<o>\w+)"
+                             r"(?: fichier| document| resultat)?", plain):
+        if rank := _ORDINALS.get(match["o"]):
+            return Command("files", {"action": "open", "index": rank})
+    if match := re.fullmatch(r"(?:montre|affiche)(?: moi)? (?:ou est|l emplacement de) (?P<q>.+)", plain):
+        return Command("files", {"action": "reveal", "query": _span(soft, match, "q")})
+    if match := re.fullmatch(r"(?:cree|creer|fais|nouveau) (?:un |le )?(?:nouveau )?dossier (?:qui s appelle )?"
+                             r"(?P<q>.+)", plain):
+        return Command("files", {"action": "new_folder", "query": _span(soft, match, "q")})
+    if re.fullmatch(r"(?:il reste |j ai )?combien de (?:place|espace)(?: libre)?"
+                    r"(?: sur (?:le disque|l ordinateur|le pc|le mac))?|espace disque", plain):
+        return Command("files", {"action": "disk"})
+
+    # -- fenêtres et applications
+    if re.fullmatch(r"(?:qu est ce qui est|qu est ce que j ai|quelles applications sont|quels programmes sont)"
+                    r" ouvert[es]*|liste (?:les |mes )?(?:fenetres|applications)", plain):
+        return Command("windows", {"action": "list"})
+    if match := re.fullmatch(r"(?:passe|va|bascule|reviens|retourne) (?:sur|a|vers|dans) (?P<n>.+)", plain):
+        target = _span(soft, match, "n")
+        if not web.resolve_site(match["n"]):
+            return Command("windows", {"action": "switch", "name": target})
+    if re.fullmatch(r"(?:reduis|minimise|cache) (?:la |cette )?fenetre", plain):
+        return Command("windows", {"action": "minimize"})
+    if re.fullmatch(r"(?:agrandis|maximise) (?:la |cette )?fenetre", plain):
+        return Command("windows", {"action": "maximize"})
+    if re.fullmatch(r"(?:mets |passe )?(?:en )?plein ecran", plain):
+        return Command("windows", {"action": "fullscreen"})
+    if re.fullmatch(r"ferme (?:la |cette )?fenetre", plain):
+        return Command("windows", {"action": "close"})
+    if match := re.fullmatch(r"(?:mets|range|colle) (?:la )?fenetre (?:a |sur )?(?:la )?"
+                             r"(?P<side>gauche|droite)", plain):
+        return Command("windows", {"action": "left" if match["side"] == "gauche" else "right"})
+
+    # -- presse-papiers
+    if re.fullmatch(r"(?:qu est ce que j ai copie|qu est ce qu il y a dans le presse papiers?"
+                    r"|lis le presse papiers?|montre le presse papiers?)", plain):
+        return Command("clipboard", {"action": "read"})
+    if match := re.fullmatch(r"copie (?P<t>.+?)(?: dans le presse papiers?)?", plain):
+        return Command("clipboard", {"action": "write", "text": _span(soft, match, "t")})
+
+    # -- réglages
+    if match := re.fullmatch(r"(?:mets|regle|passe)? ?(?:la )?luminosite (?:a|au) (?P<n>.+?)(?: pour ?cent)?", plain):
+        if (level := parse_number(match["n"])) is not None:
+            return Command("settings", {"action": "brightness", "level": level})
+    if match := re.fullmatch(r"(?P<verb>monte|augmente|baisse|diminue|reduis) (?:un peu )?(?:la )?luminosite", plain):
+        return Command("settings", {"action": "brightness",
+                                    "change": 15 if match["verb"] in ("monte", "augmente") else -15})
+    if re.fullmatch(r"(?:a quel |quel )?(?:reseau|wifi)(?: est ce que)?(?: je suis)?(?: connecte)?"
+                    r"|(?:l )?etat du wifi", plain):
+        return Command("settings", {"action": "wifi"})
+    if re.fullmatch(r"(?:coupe|eteins|desactive) le wifi", plain):
+        return Command("settings", {"action": "wifi", "on": False})
+    if re.fullmatch(r"(?:allume|active|remets) le wifi", plain):
+        return Command("settings", {"action": "wifi", "on": True})
+    if re.fullmatch(r"(?:l )?etat du bluetooth|le bluetooth est (?:il )?allume", plain):
+        return Command("settings", {"action": "bluetooth"})
+
+    # -- capture d'écran
+    if re.fullmatch(r"(?:prends|fais|prend)(?: moi)? une capture(?: d ecran)?"
+                    r"|capture (?:d )?ecran|screenshot", plain):
+        return Command("screenshot", {"mode": "screen"})
+    if re.fullmatch(r"(?:prends|fais) une capture (?:d une |de la )?(?:zone|partie|selection)"
+                    r"|capture une zone", plain):
+        return Command("screenshot", {"mode": "area"})
+
+    # -- calcul
+    if result := calc.evaluate(plain):
+        if re.search(r"\d", plain) and re.search(r"[+\-*/]|plus|moins|fois|divise|pour ?cent|racine|puissance",
+                                                 plain):
+            return Command("calculate", {"expression": soft})
+        del result
+    return None
+
+
+_RULES = (_power, _browser, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
+          _folder, _open)
+_APP_RULES = (_power, _app, _volume, _media, _timer, _machine, _search, _review, _screen, _close,
+              _folder, _open)
+_CODE_RULES = (_power, _code, _app, _volume, _media, _timer, _machine, _search, _review, _screen,
+               _close, _folder, _open)
 
 
 def parse(text: str, context: str = "") -> Command | None:

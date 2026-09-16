@@ -75,6 +75,14 @@ sans ralentir Whisper ni le LLM sur le GPU.
 | « fais une review de mon code », « relis mes changements avec Claude » | review en arrière-plan | N1 |
 | « qu'est-ce que tu vois ? », « c'est quoi cette erreur ? » | regarde l'écran et répond | N1 |
 | « donne-moi l'état de l'ordinateur » | batterie, processeur, mémoire | N1 |
+| « cherche le fichier rapport », « trouve mon CV », « ouvre le fichier contrat » | cherche et ouvre un fichier | N1 |
+| « qu'est-ce qui est ouvert ? », « passe sur Discord » | liste les fenêtres, change d'application | N1 |
+| « réduis la fenêtre », « plein écran », « mets la fenêtre à gauche » | gère la fenêtre du dessus | N1 |
+| « qu'est-ce que j'ai copié ? », « copie ce texte » | presse-papiers | N1 |
+| « monte la luminosité », « à quel réseau je suis connecté ? » | écran, Wi-Fi, Bluetooth | N1 |
+| « prends une capture » | capture enregistrée sur le bureau | N1 |
+| « combien font 15 pour cent de 340 ? » | calcul exact, sans passer par le modèle | N1 |
+| « combien de place libre ? », « crée un dossier Photos » | disque, dossiers | N1 |
 | « ferme Discord », « verrouille l'écran » | fermeture, verrouillage | N2 |
 | « éteins l'ordinateur dans 25 minutes », « redémarre le PC » | extinction différée, annulable à tout moment | N3 |
 
@@ -89,6 +97,31 @@ sans ralentir Whisper ni le LLM sur le GPU.
   **mêmes outils**, avec les mêmes confirmations.
 - Avec Claude, les outils passent par un **serveur MCP local** : Claude n'a accès à aucun de
   ses outils intégrés (ni terminal, ni fichiers), seulement aux actions de Jarvis.
+
+## Contrôle de la machine
+
+Au-delà des applications et du son, Jarvis touche à l'ordinateur lui-même. Tout marche sur **macOS et
+Windows**, et la partie Windows est vérifiée à chaque envoi par la CI, qui exécute ces tests sur une
+vraie machine Windows.
+
+| Domaine | Ce que tu peux dire |
+|---|---|
+| **Fichiers** | « cherche le fichier rapport », « trouve mon CV », « trouve mes photos de vacances », « ouvre le fichier contrat », « ouvre le deuxième », « montre où est le contrat », « crée un dossier Vacances », « combien de place libre ? » |
+| **Fenêtres** | « qu'est-ce qui est ouvert ? », « passe sur Discord », « réduis la fenêtre », « plein écran », « ferme la fenêtre », « mets la fenêtre à gauche » |
+| **Presse-papiers** | « qu'est-ce que j'ai copié ? », « copie rendez-vous à 15 h » |
+| **Réglages** | « monte la luminosité », « luminosité à 50 », « à quel réseau je suis connecté ? », « coupe le Wi-Fi », « état du Bluetooth » |
+| **Capture** | « prends une capture », « prends une capture d'une zone » |
+| **Calcul** | « combien font 15 pour cent de 340 ? », « racine carrée de 144 », « 1250 divisé par 5 » |
+
+- La **recherche de fichiers** utilise l'index du système, celui de la loupe : Spotlight sur macOS,
+  Windows Search sur Windows. Sans index, Jarvis parcourt tes dossiers personnels pendant quatre
+  secondes au plus, plutôt que de fouiller tout le disque.
+- Quand plusieurs fichiers portent le même nom, il les numérote : « ouvre le deuxième » suffit.
+- **Mettre à la corbeille** reste récupérable, et n'est jamais une suppression définitive.
+- Le **calcul est exact** : il ne passe pas par le modèle, qui se trompe sur les nombres. L'expression
+  est analysée puis évaluée opération par opération, jamais exécutée comme du code.
+- Toutes ces phrases sont reconnues **sans LLM**, donc immédiates. Le modèle a les mêmes outils pour
+  les formulations libres.
 
 ## Navigateur
 

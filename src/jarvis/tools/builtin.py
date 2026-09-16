@@ -1,7 +1,22 @@
 """Outils intégrés, macOS et Windows."""
 from __future__ import annotations
 
-from ..system import apps, folders, media, power, status, timers, volume, web
+from ..system import (
+    apps,
+    calc,
+    capture,
+    clipboard,
+    files,
+    folders,
+    gui,
+    media,
+    power,
+    settings,
+    status,
+    timers,
+    volume,
+    web,
+)
 from . import N2, N3, tool
 
 TIMERS = timers.Timers()
@@ -460,3 +475,156 @@ def code_insert(text: str, mode: str = "cursor") -> str:
 def code_run(mode: str) -> str:
     _editor().call("run", {"mode": mode})
     return {"debug": "Je lance le débogueur.", "test": "Je lance les tests."}.get(mode, "Je lance le programme.")
+
+
+# -- fichiers, fenêtres, presse-papiers, réglages : des outils groupés, pour ne pas gonfler le prompt
+
+FILE_ACTIONS = ["find", "open", "reveal", "new_folder", "disk", "trash"]
+_FOUND: list = []       # derniers fichiers trouvés, pour « ouvre le deuxième »
+
+
+def _say_files(found: list) -> str:
+    lines = [f"{index}. {item.name} (dans {item.path.parent.name})" for index, item in enumerate(found, 1)]
+    return f"J'ai trouvé {len(found)} fichier" + ("s" if len(found) > 1 else "") + " :\n" + "\n".join(lines)
+
+
+@tool("files", "Fichiers de l'ordinateur : find (chercher par nom, query ; kind facultatif document, image "
+      "ou tableur), open (ouvrir : query, ou index d'un résultat précédent), reveal (montrer dans le "
+      "Finder ou l'Explorateur), new_folder (créer un dossier, query = son nom), disk (place libre), "
+      "trash (mettre à la corbeille, récupérable).",
+      {"action": {"type": "string", "enum": FILE_ACTIONS}, "query": {"type": "string"},
+       "index": {"type": "integer", "description": "numéro d'un fichier déjà trouvé"},
+       "kind": {"type": "string", "enum": ["document", "image", "tableur"]}}, ("action",))
+def files_tool(action: str, query: str = "", index: int | None = None, kind: str = "") -> str:
+    global _FOUND
+    if action == "disk":
+        free, total = files.disk_usage()
+        return f"Il reste {free:.0f} giga-octets libres sur {total:.0f}."
+    if action == "new_folder":
+        if not query:
+            return "Dis-moi comment appeler le dossier."
+        folder = files.new_folder(query)
+        folders.open_path(folder)
+        return f"J'ai créé le dossier {folder.name} sur le bureau."
+    if action == "find":
+        _FOUND = files.search(query, kind)
+        if not _FOUND:
+            return f"Je ne trouve aucun fichier qui s'appelle {query}." if query else "Dis-moi quoi chercher."
+        return _say_files(_FOUND)
+    target = None
+    if index and 1 <= index <= len(_FOUND):
+        target = _FOUND[index - 1].path
+    elif query:
+        found = files.search(query, kind)
+        if not found:
+            return f"Je ne trouve aucun fichier qui s'appelle {query}."
+        if len(found) > 1 and action != "trash":
+            _FOUND = found
+            target = found[0].path          # le plus récent, mais on dit qu'il y en a d'autres
+        elif len(found) > 1:
+            _FOUND = found
+            return _say_files(found) + "\nDis-moi lequel mettre à la corbeille."
+        else:
+            target = found[0].path
+    if target is None:
+        return "Dis-moi quel fichier."
+    if action == "open":
+        files.open_file(target)
+        others = " Il y en a d'autres du même nom, dis « le deuxième » si ce n'est pas le bon." \
+            if len(_FOUND) > 1 else ""
+        return f"J'ouvre {target.name}.{others}"
+    if action == "reveal":
+        files.reveal(target)
+        return f"Je te montre {target.name} dans son dossier."
+    files.trash(target)
+    return f"J'ai mis {target.name} à la corbeille, tu peux encore la récupérer."
+
+
+@tool("windows", "Fenêtres ouvertes : list (dire ce qui est ouvert), switch (passer à une application, "
+      "name), minimize, maximize, fullscreen, close (la fenêtre au premier plan), left ou right (ranger "
+      "la fenêtre sur une moitié d'écran).",
+      {"action": {"type": "string", "enum": ["list", "switch", *gui.ACTIONS]}, "name": {"type": "string"}},
+      ("action",))
+def windows_tool(action: str, name: str = "") -> str:
+    if action == "list":
+        open_windows = gui.list_windows()
+        if not open_windows:
+            return "Je ne vois aucune fenêtre ouverte."
+        return "Applications ouvertes : " + ", ".join(w.app for w in open_windows) + "."
+    if action == "switch":
+        if not name:
+            return "Dis-moi quelle application."
+        window = gui.find(name)
+        if window is None:
+            app = apps.find_app(name)
+            if app is None:
+                return f"{name} n'est pas ouvert et je ne le trouve pas sur l'ordinateur."
+            apps.launch(app)
+            return f"{app.name} n'était pas ouvert, je le lance."
+        gui.activate(window)
+        return f"Je passe sur {window.app}."
+    try:
+        gui.act(action)
+    except RuntimeError as exc:
+        if str(exc) != "mac-keys":
+            raise
+        keys = gui.MAC_KEYS.get(action)
+        if keys is None or DESKTOP is None:
+            return "Ranger les fenêtres côte à côte n'est pas possible sur ce Mac ; utilise Rectangle."
+        return _desktop_call(lambda desktop: desktop.shortcut(keys)) and gui.SPOKEN[action]
+    return gui.SPOKEN[action]
+
+
+@tool("clipboard", "Presse-papiers : read pour dire ce qui est copié, write pour y mettre le texte donné.",
+      {"action": {"type": "string", "enum": ["read", "write"]}, "text": {"type": "string"}}, ("action",))
+def clipboard_tool(action: str, text: str = "") -> str:
+    if action == "write":
+        if not text:
+            return "Dis-moi quoi copier."
+        clipboard.write(text)
+        return "C'est copié, tu peux le coller où tu veux."
+    content = clipboard.read().strip()
+    if not content:
+        return "Le presse-papiers est vide."
+    short = content if len(content) <= 400 else content[:400] + "…"
+    return f"Tu as copié : {short}"
+
+
+@tool("settings", "Réglages de la machine : brightness (luminosité, level de 0 à 100 ou change relatif), "
+      "wifi (sans on : dire à quel réseau tu es connecté ; avec on : allumer ou couper), bluetooth (état).",
+      {"action": {"type": "string", "enum": ["brightness", "wifi", "bluetooth"]},
+       "level": {"type": "integer"}, "change": {"type": "integer"}, "on": {"type": "boolean"}}, ("action",))
+def settings_tool(action: str, level: int | None = None, change: int | None = None,
+                  on: bool | None = None) -> str:
+    if action == "brightness":
+        if level is None and change is None:
+            current = settings.get_brightness()
+            return f"Luminosité à {current} pour cent." if current is not None else \
+                "Je ne peux pas lire la luminosité de cet écran, mais je peux la monter ou la baisser."
+        return settings.set_brightness(level, change)
+    if action == "wifi":
+        return settings.wifi_status() if on is None else settings.set_wifi(bool(on))
+    return settings.bluetooth_status()
+
+
+@tool("screenshot", "Prend une capture d'écran et l'enregistre sur le bureau : screen (tout l'écran), "
+      "area (tu choisis la zone à la souris) ou window (une fenêtre).",
+      {"mode": {"type": "string", "enum": list(capture.MODES)}})
+def screenshot_tool(mode: str = "screen") -> str:
+    try:
+        path = capture.take(mode)
+    except RuntimeError as exc:
+        if str(exc) == "outil-capture":
+            return "J'ai ouvert l'outil de capture, choisis ta zone."
+        if str(exc) == "capture annulée":
+            return "Tu as annulé la capture."
+        raise
+    return f"C'est enregistré sur le bureau, {path.name}."
+
+
+@tool("calculate", "Calcule une expression donnée à voix haute (pourcentages, racine, puissances). "
+      "Le résultat est exact : à utiliser pour tout calcul plutôt que de compter toi-même.",
+      {"expression": {"type": "string"}}, ("expression",))
+def calculate_tool(expression: str) -> str:
+    result = calc.evaluate(expression)
+    return result or f"Je n'arrive pas à calculer {expression}."

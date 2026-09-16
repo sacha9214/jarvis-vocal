@@ -70,6 +70,14 @@ class OllamaLLM:
             raise RuntimeError(f"Modèle {self.model} absent{where}.{available} Installe-le : "
                                f"`ollama pull {self.model}` (ou `jarvis setup`).")
 
+    def unload(self) -> None:
+        """Rend la mémoire du modèle au système (mesuré : 3,6 Go). Il se recharge en ~1,3 s au besoin."""
+        try:
+            self._client.chat(model=self.model, messages=[{"role": "user", "content": "."}],
+                              options={"num_predict": 1}, keep_alive=0)
+        except Exception as exc:  # noqa: BLE001 - Ollama absent ou déjà déchargé : sans importance
+            LOG.debug("Déchargement du modèle local impossible : %s", exc)
+
     def warmup(self, system_prompt: str, tools: list[dict[str, Any]] | None = None) -> None:
         """Charge le modèle en mémoire et pré-remplit le cache KV du prompt système et des
         outils : les questions suivantes ne recalculent que leurs propres tokens."""

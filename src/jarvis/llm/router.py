@@ -34,6 +34,7 @@ class Router:
         self.active = active
         self.fallback = fallback if fallback in backends else None
         self.tools: list[dict[str, Any]] | None = None
+        self.free_local_memory = True     # rendre la mémoire du modèle local quand on passe sur Claude
         self._system: str | None = None
 
     @property
@@ -78,10 +79,15 @@ class Router:
             LOG.warning("Bascule vers %s impossible : %s", label, exc)
             self.last_error = str(exc)      # affiché tel quel par l'interface
             return f"Je ne peux pas passer sur {label}, le détail est dans le terminal."
+        previous = self.active
         self.active = target
         if self._system:   # chauffe en arrière-plan : la prochaine question ne paie pas le chargement
             threading.Thread(target=backend.warmup, args=(self._system, self.tools), name="warmup",
                              daemon=True).start()
+        # Le modèle local occupait plusieurs giga-octets pour rien : on les rend pendant qu'on parle à Claude.
+        if previous == LOCAL and target != LOCAL and self.free_local_memory:
+            if unload := getattr(self.backends.get(LOCAL), "unload", None):
+                threading.Thread(target=unload, name="liberation", daemon=True).start()
         return f"C'est fait, je passe sur {label}."
 
     def stream(self, messages: Sequence[Message], cancel: threading.Event | None = None,

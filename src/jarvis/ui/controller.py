@@ -111,6 +111,8 @@ class Controller:
             if close:
                 close()                   # relancé avec le nouveau réglage à la prochaine question
             self._publish_engine()
+        elif key == "llm.free_on_claude":
+            llm.free_local_memory = bool(value)
         elif key == "claude.fallback_to_local":
             llm.fallback = LOCAL if value else None
         elif key == "tts.voice":

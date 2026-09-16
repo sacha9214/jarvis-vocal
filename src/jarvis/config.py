@@ -59,7 +59,8 @@ class LlmConfig:
     num_ctx: int = 8192            # mesuré : outils + prompt = 2 900 tokens en contexte éditeur, 4 096 débordait
     max_tokens: int = 320
     temperature: float = 0.6
-    keep_alive: str = "30m"        # le modèle reste chargé entre deux questions
+    keep_alive: str = "30m"        # le modèle reste chargé en mémoire ce temps-là après la dernière question
+    free_on_claude: bool = True    # passer sur Claude rend les 3,6 Go du modèle local (mesuré)
     history_turns: int = 6
 
 

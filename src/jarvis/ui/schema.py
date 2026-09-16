@@ -99,6 +99,13 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
         Field("llm.model", "Modèle Ollama", "text",
               help="Doit être installé sur le serveur : `ollama pull <modèle>`. Ex. qwen3.5:4b-mlx, qwen3.5:9b. "
                    "« auto » sur un serveur distant prend le plus gros qwen3.5 présent."),
+        Field("llm.keep_alive", "Garder le modèle en mémoire", "select", live=False,
+              help="Le modèle local occupe environ 3,6 Go. Plus court : la mémoire revient plus vite, mais "
+                   "la première question après une pause attend son rechargement (mesuré : 1,3 s).",
+              options=(("5m", "5 minutes · mémoire libérée vite"), ("30m", "30 minutes · recommandé"),
+                       ("2h", "2 heures"), ("-1", "toujours · jamais déchargé"))),
+        Field("llm.free_on_claude", "Libérer la mémoire en passant sur Claude", "toggle", live=True,
+              help="Quand tu dis « passe sur Claude », le modèle local rend ses 3,6 Go."),
         Field("llm.temperature", "Créativité du modèle local", "slider", min=0, max=1.2, step=0.05),
         Field("llm.max_tokens", "Longueur maximale d'une réponse", "slider",
               min=64, max=1024, step=16, unit="tokens"),

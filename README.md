@@ -446,6 +446,35 @@ src/jarvis/
   server.py   serveur local (127.0.0.1, jeton de session)
 ```
 
+## Réduire la mémoire utilisée
+
+Mesuré poste par poste sur un MacBook Air M3 de 16 Go :
+
+| Poste | Mémoire |
+|---|---|
+| Modèle local, dans Ollama | 4,1 Go |
+| Voix Pocket TTS | 760 Mo |
+| Whisper, une fois chauffé | 730 Mo |
+| Mot d'activation et détection de voix | 140 Mo |
+| Python, torch, onnxruntime | 230 Mo |
+
+**Ce qui libère de la mémoire sans rien perdre :**
+
+- **Passer sur Claude rend les 3,6 Go du modèle local.** Dis « passe sur Claude » et Jarvis décharge
+  le modèle qui ne sert plus. Il se recharge tout seul au retour. Réglage « Libérer la mémoire en
+  passant sur Claude », actif par défaut.
+- **Baisser « Garder le modèle en mémoire »** de 30 à 5 minutes rend les mêmes 3,6 Go dès que tu ne
+  parles plus. Prix mesuré : 1,3 seconde de rechargement sur la première question après la pause,
+  en partie masquée par la préchauffe déclenchée quand tu dis « Hey Jarvis ».
+
+**Ce qui se paie, à toi de voir :**
+
+- **Voix Piper** au lieu de Pocket TTS : 760 Mo de moins, une voix nettement moins humaine.
+- **Modèle `qwen3.5:2b`** au lieu de `4b` : 930 Mo de moins et des réponses 0,3 s plus rapides, mais
+  la qualité chute. Mesuré sur 24 demandes, les deux choisissent aussi bien leurs outils (18 sur 24) ;
+  en revanche, sur des questions ouvertes, le 2b a répondu « une pâte brune » pour un plat de pâtes et
+  « Konnichiwa pour l'honneur » pour dire bonjour en japonais. Je ne le recommande pas.
+
 ## Optimisations essayées et écartées
 
 Mesurées sur un MacBook Air M3, pour qu'elles ne soient pas retentées à l'aveugle :
@@ -458,6 +487,7 @@ Mesurées sur un MacBook Air M3, pour qu'elles ne soient pas retentées à l'ave
 | Nourrir le modèle par blocs de 80 ms au lieu de 32 | Aucun gain mesurable (7,3 → 7,8 %, dans le bruit de mesure) |
 | Réduire la fenêtre de contexte du modèle local | Ne libère que 50 Mo : 4,07 Go à 4 096 tokens contre 4,12 Go à 8 192 |
 | Quantifier la voix Pocket TTS | **Pire des deux côtés** : 2,0 Go au lieu de 1,7, et deux fois plus lente à générer |
+| Vider le cache mémoire de MLX après chaque transcription | Le cache passe bien de 708 Mo à zéro, mais **le système ne récupère rien** : la mémoire du processus ne bouge pas d'un mégaoctet |
 | Forcer le mode hors ligne de HuggingFace au démarrage | Aucun gain (3 455 contre 3 660 ms, dans le bruit) |
 
 Ce qui reste pour alléger vraiment relève du compromis, pas de l'optimisation : la voix Piper à la
@@ -466,7 +496,7 @@ libère environ 2 Go avec des réponses moins fines. Les deux se changent dans l
 
 ## Limites connues
 
-- **16 Go de mémoire, c'est juste** : LLM (~4,8 Go), Whisper, voix naturelle (~1,6 Go) et tes
+- **16 Go de mémoire, c'est juste** : LLM (~4,1 Go), Whisper, voix naturelle (~0,8 Go) et tes
   applications se partagent la mémoire. Si le Mac swappe, tout ralentit : ferme les applications
   lourdes, ou prends `qwen3.5:2b-mlx` et la voix Piper dans les réglages. Garde-fous : l'analyse
   d'écran attend quand il reste moins de 1,5 Go libres (`screen.min_free_gb`), Whisper rend ses

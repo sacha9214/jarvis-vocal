@@ -104,6 +104,7 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
     bus.publish("state", state="loading")
     executor = executor or build_executor(cfg)
     llm = load_llm(cfg)
+    llm.free_local_memory = cfg.llm.free_on_claude
     if cfg.tools.enabled:
         llm.tools = executor.schemas()
         server = server or start_server(executor, cfg.ui.port)

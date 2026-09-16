@@ -96,3 +96,32 @@ def test_startup_fails_loudly_when_nothing_works():
                      CLAUDE: FakeBackend("haiku", check_error="expiré")}, CLAUDE, LOCAL)
     with pytest.raises(RuntimeError, match="expiré"):
         router.check()
+
+
+def test_switching_to_claude_gives_back_the_local_model_memory():
+    """Le modèle local occupe 3,6 Go mesurés : inutile de les garder pendant qu'on parle à Claude."""
+    import time
+
+    freed = []
+
+    class Local(FakeBackend):
+        def unload(self):
+            freed.append(True)
+
+    local, claude = Local("local"), FakeBackend("claude")
+    router = Router({LOCAL: local, CLAUDE: claude}, LOCAL)
+    router.switch(CLAUDE)
+    deadline = time.monotonic() + 3
+    while not freed and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert freed == [True]
+
+    freed.clear()
+    router.switch(LOCAL)                       # retour au local : on ne décharge pas ce qu'on va utiliser
+    time.sleep(0.2)
+    assert freed == []
+
+    router.free_local_memory = False           # réglage coupé : on garde le modèle chaud
+    router.switch(CLAUDE)
+    time.sleep(0.2)
+    assert freed == []

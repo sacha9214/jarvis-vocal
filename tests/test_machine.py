@@ -91,15 +91,17 @@ def test_the_file_tool_speaks_and_remembers_its_results(monkeypatch, tmp_path):
     first, second = tmp_path / "rapport 2024.pdf", tmp_path / "rapport 2023.pdf"
     for path in (first, second):
         path.write_text("x", encoding="utf-8")
-    monkeypatch.setattr(files, "search", lambda query, kind="": [files.Found(first, 2.0), files.Found(second, 1.0)])
+    monkeypatch.setattr(files, "search", lambda query, kind="", content=False: [files.Found(first, 2.0),
+                                                                                files.Found(second, 1.0)])
     opened = []
     monkeypatch.setattr(files, "open_file", opened.append)
     said = builtin.files_tool("find", "rapport")
     assert "2 fichiers" in said and "1. rapport 2024.pdf" in said and "2. rapport 2023.pdf" in said
     assert "J'ouvre rapport 2023.pdf" in builtin.files_tool("open", index=2)
     assert opened == [second]                                        # « ouvre le deuxième »
-    monkeypatch.setattr(files, "search", lambda query, kind="": [])
-    assert builtin.files_tool("find", "inexistant") == "Je ne trouve aucun fichier qui s'appelle inexistant."
+    monkeypatch.setattr(files, "search", lambda query, kind="", content=False: [])
+    assert builtin.files_tool("find", "inexistant") == \
+        "Je ne trouve aucun fichier qui s'appelle inexistant, ni qui en parle."
 
 
 # -- presse-papiers (vrai presse-papiers du système)
@@ -238,3 +240,82 @@ def test_putting_a_file_in_the_bin_asks_first():
     assert "trash" in REGISTRY["files"].description or "corbeille" in REGISTRY["files"].description
     assert shutil.which("osascript") or WINDOWS or True                # la corbeille existe sur les deux
     assert Path(files.__file__).exists()
+
+
+# -- recherche dans le contenu des fichiers (étape 3)
+
+def test_the_text_fallback_finds_a_file_by_what_it_says(tmp_path, monkeypatch):
+    """Sans index (la CI Windows n'indexe pas ses dossiers temporaires), Jarvis lit lui-même les fichiers texte."""
+    documents = tmp_path / "Documents"
+    (documents / "factures").mkdir(parents=True)
+    (documents / "factures" / "note sans nom utile.txt").write_text(
+        "Facture du fournisseur ZYXQUARTZ, septembre 2026.\nMontant : 84 euros.", encoding="utf-8")
+    (documents / "autre.md").write_text("Rien à voir, la vie est belle.", encoding="utf-8")
+    (documents / "image.png").write_bytes(b"ZYXQUARTZ")              # pas un fichier texte : ignoré
+    (documents / ".cache").mkdir()
+    (documents / ".cache" / "cache.txt").write_text("ZYXQUARTZ", encoding="utf-8")   # dossier caché : ignoré
+    monkeypatch.setattr(files.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setattr(files, "_spotlight_content", lambda query: [])
+    monkeypatch.setattr(files, "_windows_index_content", lambda query: [])
+
+    found = files.search("facture zyxquartz", content=True)
+    assert [f.name for f in found] == ["note sans nom utile.txt"]      # tous les mots, n'importe où, sans accent
+    assert files.search("la vie", content=True)[0].name == "autre.md"  # « la » seul ne suffirait pas
+    assert files.search("zyxquartz")  == []                            # par le nom : rien
+
+
+def test_the_file_tool_looks_inside_when_no_name_matches(monkeypatch, tmp_path):
+    note = tmp_path / "compte-rendu.txt"
+    note.write_text("x", encoding="utf-8")
+    calls = []
+
+    def fake_search(query, kind="", content=False):
+        calls.append(content)
+        return [files.Found(note, 1.0)] if content else []
+
+    monkeypatch.setattr(files, "search", fake_search)
+    said = builtin.files_tool("find", "réunion budget")
+    assert calls == [False, True]                                      # le nom d'abord, puis le texte
+    assert said.startswith("Aucun nom ne correspond, mais ces fichiers en parlent.")
+    assert "compte-rendu.txt" in said
+    monkeypatch.setattr(files, "search", lambda query, kind="", content=False: [])
+    assert builtin.files_tool("find", "réunion", content=True) == "Je ne trouve aucun fichier qui parle de réunion."
+
+
+@pytest.mark.parametrize(("phrase", "arguments"), [
+    ("cherche le document qui parle de la facture EDF",
+     {"action": "find", "query": "facture edf", "content": True, "kind": "document"}),
+    ("trouve les fichiers qui contiennent mot de passe wifi",
+     {"action": "find", "query": "mot de passe wifi", "content": True}),
+    ("retrouve la note où je parle de vacances", {"action": "find", "query": "vacances", "content": True,
+                                                   "kind": "document"}),
+    ("cherche contrat dans mes fichiers", {"action": "find", "query": "contrat", "content": True}),
+])
+def test_searching_inside_files_needs_no_llm(phrase, arguments):
+    command = commands.parse(phrase)
+    assert command.tool == "files" and command.arguments == arguments
+
+
+def test_real_content_search_on_this_machine(tmp_path):
+    """Pour de vrai, sur l'index du système s'il répond, sinon par lecture : sur les deux systèmes."""
+    if not (MAC or WINDOWS):
+        pytest.skip("système non pris en charge")
+    folder = Path.home() / "Documents" / f"jarvis-essai-{tmp_path.name}"
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pytest.skip("dossier Documents non modifiable ici")
+    secret = "QUARTZIFERE" + tmp_path.name[-6:].upper().replace("_", "")
+    (folder / "sans-rapport.txt").write_text(f"Ligne de test {secret} pour Jarvis.", encoding="utf-8")
+    try:
+        deadline = __import__("time").monotonic() + 20            # l'index peut mettre quelques secondes
+        found = []
+        while not found and __import__("time").monotonic() < deadline:
+            found = files.search(secret, content=True)
+            if not found:
+                __import__("time").sleep(1)
+        assert [f.name for f in found] == ["sans-rapport.txt"]
+    finally:
+        for item in folder.iterdir():
+            item.unlink()
+        folder.rmdir()

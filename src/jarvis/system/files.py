@@ -1,4 +1,4 @@
-"""Fichiers : chercher, ouvrir, montrer dans l'explorateur, créer un dossier, place disque.
+"""Fichiers : chercher par nom ou par contenu, ouvrir, montrer dans l'explorateur, créer un dossier.
 
 La recherche passe par l'index du système, le même que celui de la loupe : Spotlight sur macOS,
 Windows Search sur Windows. Si l'index est absent (indexation coupée), on parcourt les dossiers
@@ -78,6 +78,62 @@ def _windows_index(query: str) -> list[Path]:
     return [Path(line.strip()) for line in _powershell(script, SEARCH_TIMEOUT_S).splitlines() if line.strip()]
 
 
+def _spotlight_content(query: str) -> list[Path]:
+    """Spotlight cherche aussi dans le texte des fichiers (PDF, Word, Pages, notes…), pas seulement leur nom."""
+    completed = run(["mdfind", "-onlyin", str(Path.home()), query], timeout=SEARCH_TIMEOUT_S)
+    if completed.returncode != 0:
+        return []
+    return [Path(line) for line in completed.stdout.splitlines() if line.strip()]
+
+
+def _windows_index_content(query: str) -> list[Path]:
+    """Windows Search : FREETEXT cherche dans le contenu indexé, comme la zone de recherche de l'explorateur."""
+    safe = query.replace("'", "''").replace('"', "")
+    script = (
+        "$ErrorActionPreference='Stop';"
+        "$c = New-Object -ComObject ADODB.Connection;"
+        "$c.Open(\"Provider=Search.CollatorDSO;Extended Properties='Application=Windows'\");"
+        "$r = $c.Execute(\"SELECT TOP 60 System.ItemPathDisplay FROM SYSTEMINDEX \" + "
+        f"\"WHERE FREETEXT('{safe}') AND System.ItemPathDisplay IS NOT NULL\");"
+        "while (-not $r.EOF) {{ $r.Fields.Item('System.ItemPathDisplay').Value; $r.MoveNext() }};"
+        "$c.Close()")
+    return [Path(line.strip()) for line in _powershell(script, SEARCH_TIMEOUT_S).splitlines() if line.strip()]
+
+
+# Fichiers qu'on sait lire soi-même quand l'index ne répond pas. PDF et Word demandent l'index du système.
+TEXT_SUFFIXES = {".txt", ".md", ".csv", ".json", ".py", ".js", ".ts", ".html", ".css", ".xml", ".yaml", ".yml",
+                 ".ini", ".cfg", ".log", ".rtf", ".tex", ".sql", ".sh", ".bat", ".ps1", ".java", ".c", ".cpp", ".go"}
+_MAX_READ_BYTES = 2_000_000
+
+
+def _walk_content(query: str, deadline: float) -> list[Path]:
+    """Repli : lit les fichiers texte des dossiers personnels et garde ceux qui contiennent tous les mots."""
+    words = [w for w in soft(query).split() if len(w) > 2 or w.isdigit()]     # « la », « de » : partout
+    if not words:
+        return []
+    found: list[Path] = []
+    for root in [Path.home() / name for name in _HOME_FOLDERS if (Path.home() / name).is_dir()]:
+        for directory, subdirs, names in os.walk(root):
+            if time.monotonic() > deadline:
+                return found
+            subdirs[:] = [d for d in subdirs if d not in _SKIP and not d.startswith(".")]
+            for name in names:
+                path = Path(directory) / name
+                if path.suffix.lower() not in TEXT_SUFFIXES:
+                    continue
+                try:
+                    if path.stat().st_size > _MAX_READ_BYTES:
+                        continue
+                    text = soft(path.read_text(encoding="utf-8", errors="ignore"))
+                except OSError:
+                    continue
+                if all(word in text for word in words):
+                    found.append(path)
+                    if len(found) >= MAX_RESULTS * 2:
+                        return found
+    return found
+
+
 def _walk(query: str, deadline: float) -> list[Path]:
     """Repli : on parcourt les dossiers personnels jusqu'à la limite de temps."""
     wanted = soft(query)
@@ -94,18 +150,22 @@ def _walk(query: str, deadline: float) -> list[Path]:
     return found
 
 
-def search(query: str, kind: str = "") -> list[Found]:
-    """Fichiers dont le nom contient `query`, les plus récents d'abord."""
+def search(query: str, kind: str = "", content: bool = False) -> list[Found]:
+    """Fichiers dont le nom contient `query` (ou le texte, si `content`), les plus récents d'abord."""
     query = query.strip()
     if len(query) < 2:
         return []
     paths: list[Path] = []
     try:
-        paths = _spotlight(query) if IS_MAC else _windows_index(query) if IS_WINDOWS else []
+        if content:
+            paths = _spotlight_content(query) if IS_MAC else _windows_index_content(query) if IS_WINDOWS else []
+        else:
+            paths = _spotlight(query) if IS_MAC else _windows_index(query) if IS_WINDOWS else []
     except (OSError, RuntimeError, subprocess.SubprocessError):
         paths = []
     if not paths:
-        paths = _walk(query, time.monotonic() + _WALK_SECONDS)
+        deadline = time.monotonic() + _WALK_SECONDS
+        paths = _walk_content(query, deadline) if content else _walk(query, deadline)
     suffixes = KINDS.get(kind)
     results: dict[Path, Found] = {}
     for path in paths:

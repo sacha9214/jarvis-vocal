@@ -178,6 +178,11 @@ vraie machine Windows.
 - La **recherche de fichiers** utilise l'index du système, celui de la loupe : Spotlight sur macOS,
   Windows Search sur Windows. Sans index, Jarvis parcourt tes dossiers personnels pendant quatre
   secondes au plus, plutôt que de fouiller tout le disque.
+- **Elle cherche aussi dans le contenu** : « cherche le document qui parle de la facture EDF », « trouve
+  les fichiers qui contiennent mot de passe wifi », « cherche contrat dans mes fichiers ». Et quand aucun
+  nom ne correspond, Jarvis regarde tout seul dans le texte. Mesuré sur un Mac : 104 ms par l'index. Sans
+  index, il lit lui-même les fichiers texte (notes, Markdown, CSV, code…) en 2,4 s ; les PDF et
+  documents Word ne se lisent alors que si l'index du système les connaît.
 - Quand plusieurs fichiers portent le même nom, il les numérote : « ouvre le deuxième » suffit.
 - **Mettre à la corbeille** reste récupérable, et n'est jamais une suppression définitive.
 - Le **calcul est exact** : il ne passe pas par le modèle, qui se trompe sur les nombres. L'expression

@@ -449,6 +449,20 @@ def _memory(plain: str, soft: str) -> Command | None:
 def _machine(plain: str, soft: str) -> Command | None:
     """Fichiers, fenêtres, presse-papiers, réglages, capture, calcul : sans passer par le modèle."""
     # -- fichiers
+    # « le document qui parle de la facture EDF », « cherche contrat dans mes fichiers » : dans le texte.
+    if match := re.fullmatch(r"(?:trouve|cherche|retrouve)(?: moi)? (?:le |la |les |un |une |des |mon |ma |mes )?"
+                             r"(?P<kw>fichiers?|documents?|notes?|photos?|images?) "
+                             r"(?:qui (?:parlent?|parle) (?:de |d |du |des )|qui contien(?:nen)?t "
+                             r"|ou (?:il y a|on parle de|je parle de) |sur )"
+                             r"(?:le |la |les |l |un |une |des |mon |ma |mes )?(?P<q>.+)", plain):
+        word = match["kw"]
+        kind = "document" if word.startswith(("document", "note")) else "image" if word.startswith(("photo", "image")) \
+            else ""
+        return Command("files", {"action": "find", "query": _span(soft, match, "q"), "content": True,
+                                 **({"kind": kind} if kind else {})})
+    if match := re.fullmatch(r"(?:trouve|cherche|retrouve)(?: moi)? (?P<q>.+?) dans (?:mes|les) (?:fichiers|documents"
+                             r"|notes)", plain):
+        return Command("files", {"action": "find", "query": _span(soft, match, "q"), "content": True})
     # « cherche le fichier X » ou « trouve mon X » : sinon c'est une recherche web, pas un fichier.
     if match := re.fullmatch(r"(?:trouve|cherche|retrouve)(?: moi)? "
                              r"(?:(?:le |la |les |mon |ma |mes )?(?P<kw>fichiers?|documents?|dossiers?|photos?"

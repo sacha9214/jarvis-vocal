@@ -491,14 +491,16 @@ def _say_files(found: list) -> str:
     return f"J'ai trouvé {len(found)} fichier" + ("s" if len(found) > 1 else "") + " :\n" + "\n".join(lines)
 
 
-@tool("files", "Fichiers de l'ordinateur : find (chercher par nom, query ; kind facultatif document, image "
-      "ou tableur), open (ouvrir : query, ou index d'un résultat précédent), reveal (montrer dans le "
-      "Finder ou l'Explorateur), new_folder (créer un dossier, query = son nom), disk (place libre), "
-      "trash (mettre à la corbeille, récupérable).",
+@tool("files", "Fichiers de l'ordinateur : find (chercher, query ; content vrai pour chercher dans le TEXTE des "
+      "fichiers, par exemple « le document qui parle de la facture EDF » ; kind facultatif document, image ou "
+      "tableur), open (ouvrir : query, ou index d'un résultat précédent), reveal (montrer dans le Finder ou "
+      "l'Explorateur), new_folder (créer un dossier, query = son nom), disk (place libre), trash (corbeille).",
       {"action": {"type": "string", "enum": FILE_ACTIONS}, "query": {"type": "string"},
        "index": {"type": "integer", "description": "numéro d'un fichier déjà trouvé"},
-       "kind": {"type": "string", "enum": ["document", "image", "tableur"]}}, ("action",))
-def files_tool(action: str, query: str = "", index: int | None = None, kind: str = "") -> str:
+       "kind": {"type": "string", "enum": ["document", "image", "tableur"]},
+       "content": {"type": "boolean", "description": "chercher dans le texte des fichiers"}}, ("action",))
+def files_tool(action: str, query: str = "", index: int | None = None, kind: str = "",
+               content: bool = False) -> str:
     global _FOUND
     if action == "disk":
         free, total = files.disk_usage()
@@ -510,9 +512,16 @@ def files_tool(action: str, query: str = "", index: int | None = None, kind: str
         folders.open_path(folder)
         return f"J'ai créé le dossier {folder.name} sur le bureau."
     if action == "find":
-        _FOUND = files.search(query, kind)
+        if not query:
+            return "Dis-moi quoi chercher."
+        _FOUND = files.search(query, kind, content=content)
+        if not _FOUND and not content:
+            _FOUND = files.search(query, kind, content=True)      # rien par le nom : on regarde dans le texte
+            if _FOUND:
+                return "Aucun nom ne correspond, mais ces fichiers en parlent. " + _say_files(_FOUND)
         if not _FOUND:
-            return f"Je ne trouve aucun fichier qui s'appelle {query}." if query else "Dis-moi quoi chercher."
+            return (f"Je ne trouve aucun fichier qui parle de {query}." if content else
+                    f"Je ne trouve aucun fichier qui s'appelle {query}, ni qui en parle.")
         return _say_files(_FOUND)
     target = None
     if index and 1 <= index <= len(_FOUND):

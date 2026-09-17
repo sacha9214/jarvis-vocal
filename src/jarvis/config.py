@@ -141,6 +141,8 @@ class UiConfig:
 @dataclass
 class Config:
     user_name: str = ""
+    # complet : tout sur la machine (~7 Go). leger : Claude + voix Piper + pas d'analyse d'écran (~1,5 Go, mesuré).
+    mode: str = "complet"
     wakeword: WakeWordConfig = field(default_factory=WakeWordConfig)
     vad: VadConfig = field(default_factory=VadConfig)
     stt: SttConfig = field(default_factory=SttConfig)
@@ -161,6 +163,10 @@ class Config:
         """Remplace les « auto » par le plan recommandé pour ce matériel."""
         hw = hw or hardware.detect()
         plan = hardware.recommend(hw)
+        if self.mode not in MODES:
+            raise ValueError(f"Mode inconnu : {self.mode} ({', '.join(MODES)})")
+        if self.mode == "leger":
+            apply_light_mode(self)
         stt = self.stt
         if stt.backend == "auto":
             stt.backend = plan.stt_backend
@@ -176,6 +182,20 @@ class Config:
         if self.llm.model == "auto" and not self.llm.remote:   # distant : choisi parmi les modèles du serveur
             self.llm.model = plan.llm_model
         return self
+
+
+MODES = ("complet", "leger")
+
+
+def apply_light_mode(cfg: Config) -> None:
+    """Mesuré sur Mac M3 (mémoire réellement occupée) : complet ~7 Go = Qwen 4,1 Go + Jarvis 2,4 Go (dont Fantine
+    et PyTorch ~1,1 Go) ; léger ~1,45 Go = Jarvis avec Piper 1,25 Go + processus Claude 0,18 Go.
+    Whisper reste le même : les plus petits ne gagnent presque rien (small 1,4 Go, base 0,7 Go) et se trompent
+    davantage (mots justes 82 % → 71 % → 56 %). Qwen n'est jamais chargé, sauf repli si Claude échoue."""
+    cfg.llm.backend = "claude"
+    cfg.llm.free_on_claude = True
+    cfg.tts.backend = "piper"
+    cfg.screen.enabled = False       # la vision ne peut être que locale (les captures ne partent jamais) : Qwen
 
 
 LOADED_PATH: Path | None = None

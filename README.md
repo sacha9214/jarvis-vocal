@@ -580,6 +580,26 @@ Mesuré poste par poste sur un MacBook Air M3 de 16 Go :
 | Mot d'activation et détection de voix | 140 Mo |
 | Python, torch, onnxruntime | 230 Mo |
 
+### Mode léger
+
+Réglages → Général → **Mode** (`mode: leger` dans `config.yaml`), puis redémarrer. Il met Claude comme
+moteur, la voix Piper, et coupe l'analyse de l'écran (elle ne peut être que locale, donc rechargerait Qwen).
+Mesuré sur MacBook Air M3, mémoire réellement occupée (`footprint`), un processus neuf par combinaison :
+
+| Combinaison | Mémoire | Mots justes* | Transcription |
+|---|---|---|---|
+| **Complet** : Qwen (Ollama) + Jarvis avec Fantine | **~6,5 Go** (4,1 + 2,4) | 82 % | 366 ms |
+| **Léger** : Claude + Jarvis avec Piper | **~1,45 Go** (0,18 + 1,25) | 82 % | 367 ms |
+| Léger + Whisper small | ~1,6 Go (1,4 Go pour Jarvis) | 71 % | 127 ms |
+| Léger + Whisper small q4 | ~1,1 Go | 67 % | 108 ms |
+| Léger + Whisper base | ~0,85 Go | 56 % | 43 ms |
+
+\* 24 commandes dites par deux voix de synthèse (valeur relative : les voix de synthèse sont plus difficiles
+à comprendre qu'une vraie voix). Whisper n'est donc pas réduit : c'est la voix Fantine et PyTorch qui
+pesaient 1,1 Go, pas lui. Le mode léger garde le repli sur le modèle local si Claude échoue, qui
+rechargerait alors ses 4 Go. Non mesuré sous Windows. Le prix : tes questions partent chez Anthropic,
+et la voix est moins humaine.
+
 **Ce qui libère de la mémoire sans rien perdre :**
 
 - **Passer sur Claude rend les 3,6 Go du modèle local.** Dis « passe sur Claude » et Jarvis décharge

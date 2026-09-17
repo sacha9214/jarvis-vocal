@@ -40,6 +40,12 @@ VOICE_OPTIONS = (
 SECTIONS: list[tuple[str, str, str, list[Field]]] = [
     ("general", "Général", "Qui tu es et avec quel moteur Jarvis réfléchit.", [
         Field("user_name", "Ton prénom", "text", help="Jarvis s'adresse à toi par ce prénom."),
+        Field("mode", "Mode", "select", live=False,
+              help="Léger : Claude répond (tes questions partent chez Anthropic), voix Piper moins naturelle, pas "
+                   "d'analyse d'écran. Mesuré sur Mac : ~1,5 Go de mémoire au lieu de ~7 Go. Il remplace le moteur, "
+                   "la voix et l'écran choisis plus bas. Si Claude échoue, le modèle local se recharge en secours.",
+              options=(("complet", "Complet · tout sur ta machine (~7 Go)"),
+                       ("leger", "Léger · Claude + voix Piper (~1,5 Go)"))),
         Field("llm.backend", "Moteur au démarrage", "select",
               help="Tu peux aussi dire « passe sur Claude » ou « passe en local ».",
               options=(("ollama", "Local (Ollama)"), ("claude", "Claude (ton abonnement)"))),

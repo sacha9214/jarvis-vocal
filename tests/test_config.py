@@ -51,3 +51,21 @@ def test_a_broken_config_file_says_what_and_where(tmp_path):
     path.write_text("- une liste\n", encoding="utf-8")
     with pytest.raises(ValueError, match="liste de réglages"):
         config.load(path)
+
+
+def test_light_mode_frees_the_heavy_local_models():
+    from jarvis.config import Config
+    cfg = Config(mode="leger").resolve()
+    assert cfg.llm.backend == "claude" and cfg.llm.free_on_claude
+    assert cfg.tts.backend == "piper"
+    assert not cfg.screen.enabled               # la vision serait locale : Qwen rechargé pour rien
+    full = Config().resolve()
+    assert full.llm.backend == "ollama" and full.tts.backend == "auto" and full.screen.enabled
+
+
+def test_an_unknown_mode_is_refused():
+    import pytest
+
+    from jarvis.config import Config
+    with pytest.raises(ValueError, match="Mode inconnu"):
+        Config(mode="turbo").resolve()

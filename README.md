@@ -1,146 +1,149 @@
-# Jarvis — assistant vocal local
+# Jarvis — local voice assistant
 
-Assistant vocal en français qui tourne **sur ta machine**, sous **macOS et Windows**.
-Tu dis « Hey Jarvis », tu parles normalement, il répond d'une **voix naturelle**, **agit sur ton
-ordinateur** (applications, musique, volume, minuteurs…), **pilote les vidéos et les pages de ton
-navigateur**, **voit ce que tu fais à l'écran** et
-s'affiche dans une **interface holographique** où tu règles tout en direct. Il réfléchit en local
-ou avec **ton abonnement Claude**.
+A French-speaking voice assistant that runs **on your own machine**, on **macOS and Windows**.
+You say "Hey Jarvis", talk normally, and it answers in a **natural voice**, **acts on your
+computer** (apps, music, volume, timers…), **controls videos and pages in your
+browser**, **sees what you're doing on screen** and
+shows up in a **holographic interface** where you adjust everything live. It thinks locally
+or through **your Claude subscription**.
 
-> Réécriture de [sosoj92/jarvis-assistant-vocal](https://github.com/sosoj92/jarvis-assistant-vocal)
-> (MIT), repartie de zéro pour corriger ses défauts : Windows uniquement, quasiment pas
-> de tests, mode local lent et fragile. Le détail est dans [docs/ROADMAP.md](docs/ROADMAP.md).
+> Jarvis understands and speaks French, so the example commands below are shown in French,
+> exactly as you would say them.
 
-## Latence mesurée
+> A rewrite of [sosoj92/jarvis-assistant-vocal](https://github.com/sosoj92/jarvis-assistant-vocal)
+> (MIT), started from scratch to fix its shortcomings: Windows only, almost no
+> tests, slow and fragile local mode. Details in [docs/ROADMAP.md](docs/ROADMAP.md).
 
-MacBook Air M5 16 Go, modèles par défaut, `uv run jarvis bench` :
+## Measured latency
 
-| Étage | Temps |
+MacBook Air M5 16 GB, default models, `uv run jarvis bench`:
+
+| Stage | Time |
 |---|---|
-| Fin de ta phrase détectée (silence) | 550 ms, réglable |
-| Transcription Whisper large-v3-turbo q4 (MLX) | ~370 ms (~550 ms si la mémoire est saturée) |
-| LLM `qwen3.5:4b-mlx` : premier token, puis première phrase complète | ~200 ms, ~550-850 ms |
-| Voix naturelle Pocket TTS : premier son | ~150-250 ms (Piper : ~55 ms) |
-| **Fin de ta phrase → première syllabe** | **~1,7-2 s** pour une question, **~1-1,5 s** pour une commande |
+| End of your sentence detected (silence) | 550 ms, adjustable |
+| Whisper large-v3-turbo q4 transcription (MLX) | ~370 ms (~550 ms when memory is saturated) |
+| LLM `qwen3.5:4b-mlx`: first token, then first complete sentence | ~200 ms, ~550-850 ms |
+| Pocket TTS natural voice: first sound | ~150-250 ms (Piper: ~55 ms) |
+| **End of your sentence → first syllable** | **~1.7-2 s** for a question, **~1-1.5 s** for a command |
 
-Ce que Jarvis occupe pendant ce temps, mesuré sur ce Mac :
+What Jarvis uses meanwhile, measured on the same Mac:
 
-| Ressource | Valeur |
+| Resource | Value |
 |---|---|
-| Mémoire de Jarvis (écoute, transcription, voix) | 2,6 Go |
-| Mémoire du modèle local, dans Ollama | 4,7 Go |
-| Processeur en veille | 7 à 8 % d'un cœur |
-| Processeur pendant que Jarvis parle | environ 1,5 cœur |
-| Une transcription de 3 secondes | 380 ms |
+| Jarvis memory (listening, transcription, voice) | 2.6 GB |
+| Local model memory, in Ollama | 4.7 GB |
+| CPU while idle | 7 to 8% of one core |
+| CPU while Jarvis speaks | about 1.5 cores |
+| Transcribing 3 seconds of speech | 380 ms |
 
-Les commandes courantes sur le PC ne passent pas par le LLM : elles répondent aussi vite
-que l'heure ou la date.
+Common computer commands don't go through the LLM: they respond as fast
+as asking for the time or date.
 
-## Voix naturelle
+## Natural voice
 
-Jarvis parle avec [Pocket TTS](https://github.com/kyutai-labs/pocket-tts) (Kyutai, MIT), une
-voix neuronale française bien plus humaine que Piper. Elle tourne sur le processeur, en flux,
-sans ralentir Whisper ni le LLM sur le GPU.
+Jarvis speaks with [Pocket TTS](https://github.com/kyutai-labs/pocket-tts) (Kyutai, MIT), a
+neural French voice far more human than Piper. It runs on the CPU, streaming,
+without slowing down Whisper or the LLM on the GPU.
 
-- **Voix par défaut : Fantine.** Mesuré sur 16 réponses courtes typiques, elle en rend 14 à 15
-  correctement ; les voix masculines (Marius, Jean, Javert) tombent à 2 ou 3 sur ce type de phrase.
-  Elles restent choisissables, signalées comme instables.
-- La voix change **instantanément** depuis l'interface. `tts.voice` accepte aussi un fichier
-  `.wav` à imiter.
-- Garde-fous : si la machine est trop lente pour parler sans hacher, Jarvis garde **Piper** ; si une
-  génération s'emballe, elle est coupée.
-- **Jamais moins de trois mots.** Mesuré (synthèse puis retranscription par Whisper, 64 essais par
-  variante) : Fantine rate ~40 % des énoncés d'un ou deux mots (« Pause. » devient « Pose », « Oui. »
-  devient un souffle), 2 % à partir de trois mots. Un mot d'amorce n'y change rien. Toutes les phrases
-  de Jarvis font donc au moins trois mots, et le découpeur colle un morceau trop court au suivant. La
-  carte son n'était pas en cause : zéro sous-alimentation mesurée, même en latence basse avec Ollama
-  qui génère en même temps.
+- **Default voice: Fantine.** Measured on 16 typical short replies, it renders 14 to 15
+  correctly; the male voices (Marius, Jean, Javert) drop to 2 or 3 on this kind of sentence.
+  They can still be selected, flagged as unstable.
+- The voice changes **instantly** from the interface. `tts.voice` also accepts a `.wav`
+  file to imitate.
+- Safeguards: if the machine is too slow to speak without stuttering, Jarvis keeps **Piper**; if a
+  generation runs away, it is cut off.
+- **Never fewer than three words.** Measured (synthesis, then transcription back by Whisper, 64 runs per
+  variant): Fantine garbles ~40% of one- or two-word utterances ("Pause." becomes "Pose", "Oui."
+  becomes a breath), and 2% from three words up. A lead-in word doesn't help. So every Jarvis sentence
+  has at least three words, and the splitter glues a chunk that's too short onto the next one. The
+  sound card was not to blame: zero underruns measured, even at low latency with Ollama
+  generating at the same time.
 
-## Ce que Jarvis sait faire sur ton ordinateur
+## What Jarvis can do on your computer
 
-| Tu dis | Action | Niveau |
+| You say | Action | Level |
 |---|---|---|
-| « ouvre Spotify », « lance la calculatrice » | ouvre une application installée | N1 |
-| « va sur YouTube », « cherche recette de crêpes » | ouvre un site, lance une recherche | N1 |
-| « ouvre mes téléchargements » | ouvre un dossier | N1 |
+| « ouvre Spotify », « lance la calculatrice » | opens an installed app | N1 |
+| « va sur YouTube », « cherche recette de crêpes » | opens a website, runs a search | N1 |
+| « ouvre mes téléchargements » | opens a folder | N1 |
 | « monte le son », « volume à trente », « coupe le son » | volume | N1 |
-| « mets pause », « chanson suivante » | lecture (Spotify, Musique ; lecteur actif sous Windows) | N1 |
-| « mets un minuteur de 5 minutes pour les pâtes » | minuteur annoncé à voix haute | N1 |
-| « baisse le volume de la vidéo », « avance de 30 secondes » | vidéo du navigateur | N1 |
-| « lance la deuxième vidéo », « clique sur Paramètres » | clic dans la page | N1 |
-| « cherche des tutos Python sur YouTube », « ferme l'onglet » | recherche, onglets | N1 / N2 |
-| « résume ce document », « clique sur Envoyer », « enregistre le fichier » | lit et pilote l'application ouverte | N1 / N2 |
-| « c'est quoi cette erreur ? », « explique cette fonction », « va à la ligne 42 » | lit et pilote VS Code (extension) | N1 |
-| « écris un commentaire ici », « lance les tests » | écrit dans le fichier, exécute | N2 |
-| « fais une review de mon code », « relis mes changements avec Claude » | review en arrière-plan | N1 |
-| « qu'est-ce que tu vois ? », « c'est quoi cette erreur ? » | regarde l'écran et répond | N1 |
-| « donne-moi l'état de l'ordinateur » | batterie, processeur, mémoire | N1 |
-| « cherche le fichier rapport », « trouve mon CV », « ouvre le fichier contrat » | cherche et ouvre un fichier | N1 |
-| « qu'est-ce qui est ouvert ? », « passe sur Discord » | liste les fenêtres, change d'application | N1 |
-| « réduis la fenêtre », « plein écran », « mets la fenêtre à gauche » | gère la fenêtre du dessus | N1 |
-| « qu'est-ce que j'ai copié ? », « copie ce texte » | presse-papiers | N1 |
-| « monte la luminosité », « à quel réseau je suis connecté ? » | écran, Wi-Fi, Bluetooth | N1 |
-| « prends une capture » | capture enregistrée sur le bureau | N1 |
-| « combien font 15 pour cent de 340 ? » | calcul exact, sans passer par le modèle | N1 |
-| « combien de place libre ? », « crée un dossier Photos » | disque, dossiers | N1 |
-| « ferme Discord », « verrouille l'écran » | fermeture, verrouillage | N2 |
-| « éteins l'ordinateur dans 25 minutes », « redémarre le PC » | extinction différée, annulable à tout moment | N3 |
+| « mets pause », « chanson suivante » | playback (Spotify, Music; active player on Windows) | N1 |
+| « mets un minuteur de 5 minutes pour les pâtes » | timer announced out loud | N1 |
+| « baisse le volume de la vidéo », « avance de 30 secondes » | browser video | N1 |
+| « lance la deuxième vidéo », « clique sur Paramètres » | clicks in the page | N1 |
+| « cherche des tutos Python sur YouTube », « ferme l'onglet » | search, tabs | N1 / N2 |
+| « résume ce document », « clique sur Envoyer », « enregistre le fichier » | reads and controls the open app | N1 / N2 |
+| « c'est quoi cette erreur ? », « explique cette fonction », « va à la ligne 42 » | reads and controls VS Code (extension) | N1 |
+| « écris un commentaire ici », « lance les tests » | writes in the file, runs | N2 |
+| « fais une review de mon code », « relis mes changements avec Claude » | code review in the background | N1 |
+| « qu'est-ce que tu vois ? », « c'est quoi cette erreur ? » | looks at the screen and answers | N1 |
+| « donne-moi l'état de l'ordinateur » | battery, CPU, memory | N1 |
+| « cherche le fichier rapport », « trouve mon CV », « ouvre le fichier contrat » | finds and opens a file | N1 |
+| « qu'est-ce qui est ouvert ? », « passe sur Discord » | lists windows, switches apps | N1 |
+| « réduis la fenêtre », « plein écran », « mets la fenêtre à gauche » | manages the front window | N1 |
+| « qu'est-ce que j'ai copié ? », « copie ce texte » | clipboard | N1 |
+| « monte la luminosité », « à quel réseau je suis connecté ? » | display, Wi-Fi, Bluetooth | N1 |
+| « prends une capture » | screenshot saved to the desktop | N1 |
+| « combien font 15 pour cent de 340 ? » | exact math, without going through the model | N1 |
+| « combien de place libre ? », « crée un dossier Photos » | disk, folders | N1 |
+| « ferme Discord », « verrouille l'écran » | quit, lock | N2 |
+| « éteins l'ordinateur dans 25 minutes », « redémarre le PC » | delayed shutdown, cancellable at any time | N3 |
 
-- **Extinction différée** : « éteins l'ordinateur dans 25 minutes », « redémarre le pc dans une heure »,
-  « mets l'ordinateur en veille dans 20 minutes ». Jarvis confirme, annonce l'heure, **prévient une
-  minute avant**, et « annule l'extinction » arrête tout. « Il reste combien de temps ? » donne le compte
-  à rebours. Sans délai, il attend 20 secondes, le temps de te raviser.
-- **N1** agit tout de suite. **N2** demande « Tu confirmes ? » : réponds « oui », « non » ou
-  « toujours » pour ne plus être interrogé. **N3** demande à chaque fois, sans exception.
-- La confirmation se donne **à la voix ou d'un clic** dans l'interface.
-- Les phrases courantes sont reconnues **sans LLM** ; le reste part au modèle, qui dispose des
-  **mêmes outils**, avec les mêmes confirmations.
-- Avec Claude, les outils passent par un **serveur MCP local** : Claude n'a accès à aucun de
-  ses outils intégrés (ni terminal, ni fichiers), seulement aux actions de Jarvis.
+- **Delayed shutdown**: « éteins l'ordinateur dans 25 minutes », « redémarre le pc dans une heure »,
+  « mets l'ordinateur en veille dans 20 minutes ». Jarvis confirms, announces the time, **warns you one
+  minute before**, and « annule l'extinction » stops everything. « Il reste combien de temps ? » gives the
+  countdown. With no delay, it waits 20 seconds, giving you time to change your mind.
+- **N1** acts right away. **N2** asks « Tu confirmes ? » (do you confirm?): answer « oui », « non » or
+  « toujours » (always) to never be asked again. **N3** asks every time, no exceptions.
+- Confirmation is given **by voice or with a click** in the interface.
+- Common phrases are recognized **without the LLM**; everything else goes to the model, which has the
+  **same tools**, with the same confirmations.
+- With Claude, tools go through a **local MCP server**: Claude has no access to any of
+  its built-in tools (no terminal, no files), only to Jarvis's actions.
 
-## Mémoire
+## Memory
 
-Jarvis retient ce que tu lui apprends, d'une session à l'autre :
+Jarvis remembers what you teach it, from one session to the next:
 
-| Tu dis | Effet |
+| You say | Effect |
 |---|---|
-| « retiens que je travaille sur le projet jarvis-vocal » | noté pour toujours |
-| « souviens-toi que ma sœur s'appelle Léa » | idem |
-| « qu'est-ce que tu sais sur moi ? » | il récite ce qu'il a retenu |
-| « oublie que je préfère le café sans sucre » | retire le souvenir le plus proche |
-| « oublie tout » | efface la mémoire |
+| « retiens que je travaille sur le projet jarvis-vocal » | remembered for good |
+| « souviens-toi que ma sœur s'appelle Léa » | same |
+| « qu'est-ce que tu sais sur moi ? » | recites what it remembers |
+| « oublie que je préfère le café sans sucre » | removes the closest memory |
+| « oublie tout » | wipes the memory |
 
-Ensuite, « comment s'appelle ma sœur ? » répond « Léa », sans que tu le redises.
+Then « comment s'appelle ma sœur ? » (what's my sister's name?) answers "Léa", without you repeating it.
 
-- **Seuls les souvenirs utiles à la question sont donnés au modèle**, juste avant elle. Mesuré sur huit
-  questions : avec toute la mémoire dans le prompt, un modèle de 4 milliards de paramètres la récitait
-  n'importe où (« La capitale de l'Italie est Rome. Je préfère le café sans sucre »), 6 réponses
-  correctes sur 8 ; en ne donnant que les souvenirs pertinents, 8 sur 8.
-- Les souvenirs lui sont présentés **à la troisième personne** (« Sacha travaille sur… ») : lus tels
-  quels, « je travaille sur jarvis » lui faisaient dire « Je travaille sur Jarvis », comme s'il parlait
-  de lui-même.
-- Le prompt système ne change pas quand la mémoire change : le cache du modèle reste valable.
-- **Rien de secret n'est retenu** : mot de passe, code, numéro de carte ou clé sont refusés.
-- Quarante souvenirs au plus, le plus ancien laisse la place. Tout est dans `memory.json` du dossier de
-  données, lisible et modifiable ; un fichier abîmé est mis de côté, jamais écrasé.
+- **Only the memories relevant to the question are given to the model**, right before it. Measured on eight
+  questions: with the whole memory in the prompt, a 4-billion-parameter model recited it
+  anywhere ("The capital of Italy is Rome. I prefer my coffee without sugar"), 6 correct answers
+  out of 8; giving only the relevant memories, 8 out of 8.
+- Memories are presented to it **in the third person** ("Sacha is working on…"): read as-is,
+  "I'm working on jarvis" made it say "I'm working on Jarvis", as if it were talking
+  about itself.
+- The system prompt doesn't change when the memory does: the model's cache stays valid.
+- **Nothing secret is stored**: passwords, codes, card numbers or keys are refused.
+- Forty memories at most; the oldest makes room. Everything lives in `memory.json` in the data
+  folder, readable and editable; a corrupted file is set aside, never overwritten.
 
-## Agenda
+## Calendar
 
-| Tu dis | Effet |
+| You say | Effect |
 |---|---|
-| « qu'est-ce que j'ai demain ? », « …de prévu jeudi ? » | le programme du jour |
-| « qu'est-ce que j'ai cette semaine ? » | les sept prochains jours |
-| « c'est quoi mon prochain rendez-vous ? » | le prochain, avec le jour |
-| « est-ce que je suis libre demain à 15 heures ? » | libre, ou ce qui occupe ce créneau |
-| « ajoute rendez-vous chez le dentiste jeudi à 14 heures » | l'ajoute à l'agenda de Jarvis |
-| « je dois voir le dentiste vendredi à 11 heures, tu peux le noter ? » | idem, la demande en fin de phrase |
-| « supprime le rendez-vous chez le dentiste » | le retire |
+| « qu'est-ce que j'ai demain ? », « …de prévu jeudi ? » | the day's schedule |
+| « qu'est-ce que j'ai cette semaine ? » | the next seven days |
+| « c'est quoi mon prochain rendez-vous ? » | the next one, with the day |
+| « est-ce que je suis libre demain à 15 heures ? » | free, or what occupies that slot |
+| « ajoute rendez-vous chez le dentiste jeudi à 14 heures » | adds it to Jarvis's calendar |
+| « je dois voir le dentiste vendredi à 11 heures, tu peux le noter ? » | same, with the request at the end |
+| « supprime le rendez-vous chez le dentiste » | removes it |
 
-- **Rappel à voix haute dix minutes avant** chaque rendez-vous (`agenda.remind_minutes`, 0 pour aucun).
-- **Tes agendas Google, Outlook ou iCloud sont lus**, sans connexion à ton compte ni mot de passe : colle
-  leur adresse iCal privée dans `config.yaml`. Google : Paramètres › ton agenda › « Adresse secrète au
-  format iCal » ; Outlook : Paramètres › Calendrier › Calendriers partagés › Publier ; iCloud : partager
-  l'agenda en « Calendrier public ».
+- **Spoken reminder ten minutes before** each appointment (`agenda.remind_minutes`, 0 for none).
+- **Your Google, Outlook or iCloud calendars are read**, without signing in to your account or any password: paste
+  their private iCal address into `config.yaml`. Google: Settings › your calendar › "Secret address in
+  iCal format"; Outlook: Settings › Calendar › Shared calendars › Publish; iCloud: share
+  the calendar as a "Public Calendar".
 
 ```yaml
 agenda:
@@ -149,88 +152,88 @@ agenda:
   remind_minutes: 10
 ```
 
-- Fuseaux horaires, heures universelles, **récurrences et leurs exceptions**, journées entières : gérés
-  par `icalendar` et `recurring-ical-events`, vérifiés sur un export au format de Google.
-- Les agendas externes sont **en lecture seule** : un rendez-vous Google se retire chez Google. Hors
-  ligne, Jarvis garde la dernière version lue.
-- **L'adresse iCal donne accès à ton agenda** : elle n'apparaît jamais dans le journal (seul l'hôte y
-  figure) et n'est jamais envoyée au modèle.
+- Time zones, UTC times, **recurrences and their exceptions**, all-day events: handled
+  by `icalendar` and `recurring-ical-events`, verified against a Google-format export.
+- External calendars are **read-only**: a Google appointment is removed in Google. When
+  offline, Jarvis keeps the last version it read.
+- **The iCal address grants access to your calendar**: it never appears in the log (only the host
+  does) and is never sent to the model.
 
-## Automatisations
+## Automations
 
-Jarvis agit tout seul, à une heure ou quand quelque chose se passe :
+Jarvis acts on its own, at a given time or when something happens:
 
-| Tu dis | Effet |
+| You say | Effect |
 |---|---|
-| « tous les jours à 8 heures, rappelle-moi de prendre mes médicaments » | rappel quotidien |
-| « chaque lundi à 9 heures, dis-moi de faire le point » | rappel hebdomadaire |
-| « en semaine à 18 heures 30, ferme Discord » | commande du lundi au vendredi |
-| « demain à 7 heures, rappelle-moi d'appeler le garage » | une seule fois |
-| « ce soir à 8 heures, rappelle-moi d'appeler maman » | 20 h, une seule fois |
-| « quand j'ouvre Spotify, mets le volume à 40 » | à l'ouverture d'une application |
-| « quelles sont mes automatisations ? » | il les récite |
-| « supprime le rappel des médicaments » | retire la plus proche |
+| « tous les jours à 8 heures, rappelle-moi de prendre mes médicaments » | daily reminder |
+| « chaque lundi à 9 heures, dis-moi de faire le point » | weekly reminder |
+| « en semaine à 18 heures 30, ferme Discord » | command Monday to Friday |
+| « demain à 7 heures, rappelle-moi d'appeler le garage » | one time only |
+| « ce soir à 8 heures, rappelle-moi d'appeler maman » | 8 pm, one time only |
+| « quand j'ouvre Spotify, mets le volume à 40 » | when an app opens |
+| « quelles sont mes automatisations ? » | recites them |
+| « supprime le rappel des médicaments » | removes the closest one |
 
-- L'action est soit un rappel (« rappelle-moi de… », « dis-moi de… »), soit **n'importe quelle commande
-  que Jarvis comprend**, jouée comme si tu l'avais dite. Ce qu'il ne comprendrait pas est refusé dès la
-  création, pas découvert à 8 heures du matin.
-- Les **actions sensibles gardent leur confirmation** : programmer « éteins l'ordinateur » ne l'éteindra
-  pas sans ton oui.
-- Reconnu sans LLM, **avec ou sans virgule** : Whisper ne la transcrit pas toujours, Jarvis cherche alors
-  où finit « quand » et où commence « quoi ».
-- Ordinateur en veille à l'heure dite : rattrapé jusqu'à dix minutes après, abandonné au-delà. Jamais
-  deux fois pour la même occurrence, même après un redémarrage.
-- Événements de la machine dans `config.yaml` (`jarvis doctor` les valide) :
+- The action is either a reminder (« rappelle-moi de… », « dis-moi de… ») or **any command
+  Jarvis understands**, played as if you had said it. Anything it wouldn't understand is rejected at
+  creation time, not discovered at 8 in the morning.
+- **Sensitive actions keep their confirmation**: scheduling « éteins l'ordinateur » won't shut it
+  down without your yes.
+- Recognized without the LLM, **with or without a comma**: Whisper doesn't always transcribe it, so Jarvis
+  works out where "when" ends and "what" begins.
+- Computer asleep at the scheduled time: caught up to ten minutes later, dropped beyond that. Never
+  twice for the same occurrence, even after a restart.
+- Machine events in `config.yaml` (`jarvis doctor` validates them):
 
 ```yaml
 automations:
   - name: batterie
-    when: {event: battery_low}          # aussi startup, power_plugged, power_unplugged, app_opened
+    when: {event: battery_low}          # also startup, power_plugged, power_unplugged, app_opened
     say: "La batterie est presque vide, branche le chargeur."
   - name: coucher
     when: {time: "23:00", days: [lundi, mardi, mercredi, jeudi, vendredi]}
     do: "mets l'ordinateur en veille"
 ```
 
-## Contrôle de la machine
+## Machine control
 
-Au-delà des applications et du son, Jarvis touche à l'ordinateur lui-même. Tout marche sur **macOS et
-Windows**, et la partie Windows est vérifiée à chaque envoi par la CI, qui exécute ces tests sur une
-vraie machine Windows.
+Beyond apps and sound, Jarvis controls the computer itself. Everything works on **macOS and
+Windows**, and the Windows side is verified on every push by CI, which runs these tests on a
+real Windows machine.
 
-| Domaine | Ce que tu peux dire |
+| Area | What you can say |
 |---|---|
-| **Fichiers** | « cherche le fichier rapport », « trouve mon CV », « trouve mes photos de vacances », « ouvre le fichier contrat », « ouvre le deuxième », « montre où est le contrat », « crée un dossier Vacances », « combien de place libre ? » |
-| **Fenêtres** | « qu'est-ce qui est ouvert ? », « passe sur Discord », « réduis la fenêtre », « plein écran », « ferme la fenêtre », « mets la fenêtre à gauche » |
-| **Presse-papiers** | « qu'est-ce que j'ai copié ? », « copie rendez-vous à 15 h » |
-| **Réglages** | « monte la luminosité », « luminosité à 50 », « à quel réseau je suis connecté ? », « coupe le Wi-Fi », « état du Bluetooth » |
-| **Capture** | « prends une capture », « prends une capture d'une zone » |
-| **Calcul** | « combien font 15 pour cent de 340 ? », « racine carrée de 144 », « 1250 divisé par 5 » |
+| **Files** | « cherche le fichier rapport », « trouve mon CV », « trouve mes photos de vacances », « ouvre le fichier contrat », « ouvre le deuxième », « montre où est le contrat », « crée un dossier Vacances », « combien de place libre ? » |
+| **Windows** | « qu'est-ce qui est ouvert ? », « passe sur Discord », « réduis la fenêtre », « plein écran », « ferme la fenêtre », « mets la fenêtre à gauche » |
+| **Clipboard** | « qu'est-ce que j'ai copié ? », « copie rendez-vous à 15 h » |
+| **Settings** | « monte la luminosité », « luminosité à 50 », « à quel réseau je suis connecté ? », « coupe le Wi-Fi », « état du Bluetooth » |
+| **Screenshot** | « prends une capture », « prends une capture d'une zone » |
+| **Math** | « combien font 15 pour cent de 340 ? », « racine carrée de 144 », « 1250 divisé par 5 » |
 
-- La **recherche de fichiers** utilise l'index du système, celui de la loupe : Spotlight sur macOS,
-  Windows Search sur Windows. Sans index, Jarvis parcourt tes dossiers personnels pendant quatre
-  secondes au plus, plutôt que de fouiller tout le disque.
-- **Elle cherche aussi dans le contenu** : « cherche le document qui parle de la facture EDF », « trouve
-  les fichiers qui contiennent mot de passe wifi », « cherche contrat dans mes fichiers ». Et quand aucun
-  nom ne correspond, Jarvis regarde tout seul dans le texte. Mesuré sur un Mac : 104 ms par l'index. Sans
-  index, il lit lui-même les fichiers texte (notes, Markdown, CSV, code…) en 2,4 s ; les PDF et
-  documents Word ne se lisent alors que si l'index du système les connaît.
-- Quand plusieurs fichiers portent le même nom, il les numérote : « ouvre le deuxième » suffit.
-- **Mettre à la corbeille** reste récupérable, et n'est jamais une suppression définitive.
-- Le **calcul est exact** : il ne passe pas par le modèle, qui se trompe sur les nombres. L'expression
-  est analysée puis évaluée opération par opération, jamais exécutée comme du code.
-- Toutes ces phrases sont reconnues **sans LLM**, donc immédiates. Le modèle a les mêmes outils pour
-  les formulations libres.
+- **File search** uses the system index, the one behind the search icon: Spotlight on macOS,
+  Windows Search on Windows. Without an index, Jarvis scans your personal folders for four
+  seconds at most, rather than crawling the whole disk.
+- **It also searches file contents**: « cherche le document qui parle de la facture EDF », « trouve
+  les fichiers qui contiennent mot de passe wifi », « cherche contrat dans mes fichiers ». And when no
+  file name matches, Jarvis looks through the text on its own. Measured on a Mac: 104 ms through the index. Without
+  an index, it reads text files itself (notes, Markdown, CSV, code…) in 2.4 s; PDFs and
+  Word documents can then only be searched if the system index knows them.
+- When several files share the same name, it numbers them: « ouvre le deuxième » (open the second one) is enough.
+- **Moving to the trash** stays recoverable and is never a permanent deletion.
+- **Math is exact**: it doesn't go through the model, which gets numbers wrong. The expression
+  is parsed then evaluated operation by operation, never executed as code.
+- All these phrases are recognized **without the LLM**, so they're instant. The model has the same tools for
+  free-form wording.
 
-## Navigateur
+## Browser
 
-Jarvis pilote la vidéo et la page de ton navigateur : volume de la vidéo (indépendant du volume
-de l'ordinateur), pause, avance, vitesse, vidéo suivante, choix d'une vidéo, clic sur un bouton ou un
-lien, défilement, onglets, recherche YouTube ou Google. Pour une demande libre (« mets la vidéo de
-cuisine »), le modèle **lit d'abord la page**, puis clique.
+Jarvis controls the video and the page in your browser: video volume (independent of the
+computer's volume), pause, seek, speed, next video, picking a video, clicking a button or a
+link, scrolling, tabs, YouTube or Google search. For a free-form request (« mets la vidéo de
+cuisine »), the model **reads the page first**, then clicks.
 
-Il **remplit aussi les formulaires**. La lecture de page numérote les champs de saisie avec leur nom et
-ce qu'ils contiennent déjà, à côté des liens et des boutons :
+It **also fills in forms**. Page reading numbers the input fields with their name and
+what they already contain, alongside links and buttons:
 
 ```
 2. [champ] Titre
@@ -238,173 +241,173 @@ ce qu'ils contiennent déjà, à côté des liens et des boutons :
 6. [bouton] Publier
 ```
 
-- « écris ma description dans le champ Description », « tape chat mignon dans Rechercher » : reconnu
-  **sans LLM**, le champ est visé par son nom (libellé, `aria-label`, texte d'invite ou `name`).
-- Sans nom de champ, Jarvis écrit dans celui qui est sélectionné ; il peut aussi le sélectionner
-  lui-même (« clique sur Description »).
-- Par défaut le texte **s'ajoute** à ce que contient le champ ; le modèle peut demander à le remplacer.
-- Vérifié dans un vrai Firefox sur les quatre sortes de champs : `input`, `textarea`, champ à texte
-  d'invite seul, et zone `contenteditable`.
+- « écris ma description dans le champ Description », « tape chat mignon dans Rechercher »: recognized
+  **without the LLM**; the field is targeted by its name (label, `aria-label`, placeholder or `name`).
+- Without a field name, Jarvis types into the focused one; it can also focus it
+  itself (« clique sur Description »).
+- By default the text is **appended** to the field's content; the model can ask to replace it.
+- Verified in a real Firefox on all four kinds of fields: `input`, `textarea`, placeholder-only
+  field, and `contenteditable` area.
 
-| Navigateur | Comment |
+| Browser | How |
 |---|---|
-| Chrome, Edge, Brave, Opera, Vivaldi, Arc | extension Jarvis : `uv run jarvis extension`, puis « Charger l'extension non empaquetée » |
-| Firefox | la même extension, en module temporaire (à recharger après chaque redémarrage de Firefox) ; un clic sur l'icône Jarvis accorde l'accès aux sites, que Firefox ne donne pas à l'installation |
-| Safari (macOS) | sans extension, par AppleScript : activer « Autoriser JavaScript depuis les Apple Events » |
+| Chrome, Edge, Brave, Opera, Vivaldi, Arc | Jarvis extension: `uv run jarvis extension`, then "Load unpacked" |
+| Firefox | the same extension, as a temporary add-on (reload it after each Firefox restart); clicking the Jarvis icon grants site access, which Firefox doesn't give at install time |
+| Safari (macOS) | no extension, through AppleScript: enable "Allow JavaScript from Apple Events" |
 
-- `jarvis extension` affiche la marche à suivre et ouvre le dossier à charger.
-- Jarvis agit sur le **dernier navigateur utilisé** : cliquer dans sa fenêtre pour lui parler ne
-  change pas la cible.
-- **Sécurité** : le pont n'écoute que 127.0.0.1, n'accepte que des extensions (une page web ne peut
-  pas s'y connecter) et exige un jeton propre à ta machine. Jarvis **refuse de cliquer** sur acheter,
-  payer, supprimer, envoyer, publier, s'abonner… ; fermer un onglet ou taper du texte demande confirmation.
+- `jarvis extension` shows the steps and opens the folder to load.
+- Jarvis acts on the **last browser used**: clicking in its window to talk to it doesn't
+  change the target.
+- **Security**: the bridge only listens on 127.0.0.1, only accepts extensions (a web page can't
+  connect to it) and requires a token unique to your machine. Jarvis **refuses to click** buy,
+  pay, delete, send, publish, subscribe…; closing a tab or typing text asks for confirmation.
 
-## Toute application
+## Any application
 
-Hors du navigateur, Jarvis lit et pilote l'application que tu utilises — Word, Outlook, Discord,
-l'Explorateur, les Réglages, ton éditeur — par l'**accessibilité du système**, celle des lecteurs d'écran :
+Outside the browser, Jarvis reads and controls the app you're using — Word, Outlook, Discord,
+File Explorer, Settings, your editor — through the **system accessibility layer**, the one screen readers use:
 « résume ce document », « c'est quoi ce message ? », « clique sur Envoyer », « appuie sur contrôle S ».
 
-| Système | Comment | À autoriser |
+| System | How | Permission needed |
 |---|---|---|
-| Windows 10/11 | UI Automation | rien |
-| macOS | API d'accessibilité (AX) | Réglages Système › Confidentialité et sécurité › Accessibilité, pour ton terminal |
+| Windows 10/11 | UI Automation | none |
+| macOS | Accessibility API (AX) | System Settings › Privacy & Security › Accessibility, for your terminal |
 
-- Jarvis **lit d'abord** (titre, texte visible, boutons et menus numérotés), puis clique par numéro ou par nom.
-- Les éléments sont activés **sans bouger la souris** quand le système le permet.
-- Le contenu des **champs de mot de passe n'est jamais lu**.
-- Mêmes garde-fous que dans le navigateur : Jarvis refuse acheter, payer, supprimer, envoyer, publier… et
-  refuse aussi un « Oui » dans une fenêtre qui parle de supprimer. Taper du texte et envoyer un raccourci
-  demandent confirmation (N2).
-- « Contrôle S » devient **Cmd+S** sur Mac : c'est ce que veut dire quelqu'un qui vient de Windows.
+- Jarvis **reads first** (title, visible text, numbered buttons and menus), then clicks by number or by name.
+- Elements are activated **without moving the mouse** when the system allows it.
+- The content of **password fields is never read**.
+- Same safeguards as in the browser: Jarvis refuses buy, pay, delete, send, publish… and
+  also refuses a "Yes" in a dialog that talks about deleting. Typing text and sending a shortcut
+  ask for confirmation (N2).
+- "Control S" becomes **Cmd+S** on a Mac: that's what someone coming from Windows means.
 
-## Éditeur de code (VS Code)
+## Code editor (VS Code)
 
-VS Code dessine son éditeur dans un canvas et **n'expose rien à l'accessibilité** (mesuré : 12 éléments,
-0 caractère, même avec `editor.accessibilitySupport`). Jarvis passe donc par une **extension VS Code**,
-sur le modèle de celle du navigateur : `uv run jarvis code` l'empaquette (VSIX, sans Node ni vsce) et
-l'installe dans VS Code, Cursor, Windsurf ou VSCodium ; « Jarvis » apparaît dans la barre d'état.
+VS Code draws its editor in a canvas and **exposes nothing to accessibility** (measured: 12 elements,
+0 characters, even with `editor.accessibilitySupport`). So Jarvis uses a **VS Code extension**,
+modeled on the browser one: `uv run jarvis code` packages it (VSIX, without Node or vsce) and
+installs it in VS Code, Cursor, Windsurf or VSCodium; "Jarvis" shows up in the status bar.
 
-| Tu dis | Ce que fait Jarvis |
+| You say | What Jarvis does |
 |---|---|
-| « explique ce fichier », « résume ce que j'ai sélectionné » | lit le fichier autour du curseur (lignes numérotées), la sélection, les onglets |
-| « c'est quoi cette erreur ? », « il reste des problèmes ? » | lit les diagnostics (linter, compilateur) du fichier ou du projet |
-| « ouvre pipeline point py », « va à la ligne 42 », « passe au deuxième onglet » | ouvre, saute, change d'onglet |
-| « enregistre », « formate le fichier », « commente la ligne », « va à la définition » | ~40 commandes sûres de l'éditeur |
-| « cherche foreground dans le projet » | recherche dans tous les fichiers |
-| « écris `pass` ici », « lance les tests » | écrit au curseur / à la place de la sélection, exécute (N2 : confirmation) |
+| « explique ce fichier », « résume ce que j'ai sélectionné » | reads the file around the cursor (numbered lines), the selection, the tabs |
+| « c'est quoi cette erreur ? », « il reste des problèmes ? » | reads the diagnostics (linter, compiler) for the file or the project |
+| « ouvre pipeline point py », « va à la ligne 42 », « passe au deuxième onglet » | opens, jumps, switches tabs |
+| « enregistre », « formate le fichier », « commente la ligne », « va à la définition » | ~40 safe editor commands |
+| « cherche foreground dans le projet » | search across all files |
+| « écris `pass` ici », « lance les tests » | writes at the cursor / replaces the selection, runs (N2: confirmation) |
 
-- Les gestes courants (enregistrer, formater, aller à la ligne, ouvrir un fichier, onglets, tests) sont
-  reconnus **sans LLM**.
-- La **review** utilise le vrai fichier ouvert et le vrai dossier du projet donnés par l'extension,
-  plus besoin de deviner d'après le titre de la fenêtre.
-- **Sécurité** : même pont local que le navigateur (127.0.0.1, port 47831, jeton propre à ta machine),
-  route `/editor` réservée aux clients **sans en-tête Origin** : un navigateur en envoie toujours un,
-  une page web ne peut donc pas se faire passer pour l'éditeur. L'extension n'embarque aucun secret, elle
-  lit le jeton sur le disque. Pas d'identifiant de commande libre : le modèle choisit dans une liste
-  fermée, sans accès au terminal (`sendSequence`), ni push, ni suppression.
-- Mesuré dans un VS Code isolé : chaque action répond en **1 à 65 ms**.
+- Common actions (save, format, go to line, open a file, tabs, tests) are
+  recognized **without the LLM**.
+- **Code review** uses the actual open file and the actual project folder provided by the extension,
+  no more guessing from the window title.
+- **Security**: same local bridge as the browser (127.0.0.1, port 47831, token unique to your machine),
+  with an `/editor` route reserved for clients **without an Origin header**: a browser always sends one,
+  so a web page can't impersonate the editor. The extension ships no secret; it
+  reads the token from disk. No free-form command IDs: the model picks from a closed
+  list, with no terminal access (`sendSequence`), no push, no deletion.
+- Measured in an isolated VS Code: each action responds in **1 to 65 ms**.
 
-## Review de code
+## Code review
 
 « Fais une review de mon code », « review de mes changements avec Claude », « relis ce fichier »,
-« fais la review du projet site vitrine » : Jarvis la lance **en arrière-plan**, te le dit, et t'annonce
-le résumé quand elle est finie. Le rapport complet arrive dans le journal de l'interface et en markdown
-dans le dossier de données (`reviews/`).
+« fais la review du projet site vitrine »: Jarvis runs it **in the background**, tells you so, and reads
+you the summary when it's done. The full report appears in the interface log and as markdown
+in the data folder (`reviews/`).
 
-- **Quel projet** : celui de ta fenêtre VS Code, Cursor, Windsurf ou VSCodium (titre et historique de
-  l'éditeur), les projets récents des IDE JetBrains, ou le dossier que tu nommes (cherché dans Bureau,
+- **Which project**: the one in your VS Code, Cursor, Windsurf or VSCodium window (window title and editor
+  history), recent JetBrains IDE projects, or the folder you name (searched in Desktop,
   Documents, `dev`, `projects`, `source\repos`, OneDrive…).
-- **Quoi** : selon ta phrase, tout le projet, tes **changements non commités** (git) ou le **fichier affiché**.
-- **Avec Claude** (par défaut si Claude est le moteur actif, modèle `sonnet`) : Claude explore le projet
-  **en lecture seule** (lire, chercher, lister ; ni terminal, ni écriture), lancé hors du projet pour que
-  ses réglages et serveurs MCP ne se chargent pas. Si Claude échoue, Jarvis bascule en local et le dit.
-- **En local** : relecture par passes (le contexte du petit modèle est court), en pause pendant tes
-  conversations, 120 ko de code au plus (réglable) ; le rapport signale une review partielle.
-- « Où en est la review ? », « annule la review ».
+- **What**: depending on your sentence, the whole project, your **uncommitted changes** (git) or the **file on screen**.
+- **With Claude** (default when Claude is the active engine, `sonnet` model): Claude explores the project
+  **read-only** (read, search, list; no terminal, no writes), launched outside the project so that
+  its settings and MCP servers don't load. If Claude fails, Jarvis falls back to local and says so.
+- **Locally**: review in passes (the small model's context is short), paused during your
+  conversations, 120 KB of code at most (adjustable); the report flags a partial review.
+- « Où en est la review ? » (how's the review going?), « annule la review » (cancel the review).
 
-## Analyse de l'écran
+## Screen analysis
 
-Jarvis comprend ce que tu es en train de faire : toutes les ~20 s, et seulement si l'écran a
-changé, une capture réduite est décrite en une phrase par le **modèle de vision local**
-(« Sacha code en Python dans Visual Studio Code »). Cette phrase accompagne tes questions, y compris
-vers Claude ; l'image, elle, ne quitte jamais la machine et n'est jamais écrite sur disque.
+Jarvis understands what you're doing: every ~20 s, and only if the screen has
+changed, a downscaled screenshot is described in one sentence by the **local vision model**
+("Sacha is coding in Python in Visual Studio Code"). That sentence goes along with your questions, including
+to Claude; the image itself never leaves the machine and is never written to disk.
 
-- L'analyse **se met en pause pendant les conversations** pour ne jamais ralentir une réponse.
-- « C'est quoi cette erreur ? » déclenche un **regard immédiat** avec ta question.
-- Panneau **Activité** dans l'interface ; onglet **Écran** pour la couper, régler sa fréquence
-  et la précision de la capture.
-- macOS demande l'autorisation « Enregistrement de l'écran » pour ton terminal au premier usage.
+- Analysis **pauses during conversations** so it never slows down a reply.
+- « C'est quoi cette erreur ? » (what's this error?) triggers an **immediate look** with your question.
+- **Activity** panel in the interface; **Screen** tab to turn it off, set its frequency
+  and the capture resolution.
+- macOS asks for "Screen Recording" permission for your terminal on first use.
 
-## L'interface
+## The interface
 
-- Réacteur animé qui réagit à ta voix et à celle de Jarvis, avec une couleur par état :
-  veille, écoute, réflexion, parole, confirmation.
-- Journal en direct : ce que tu as dit, ce que Jarvis a répondu, chaque action avec son
-  niveau et sa durée.
-- Système (processeur, mémoire, batterie), activité à l'écran, minuteurs, latence du dernier échange.
-- Boutons **Parler** (sans « Hey Jarvis »), **Stop**, bascule **Local / Claude**.
-- **Réglages** : prénom, moteur, micro, silence de fin de phrase, voix, écran, modèles, permissions.
-  Chaque réglage indique s'il s'applique **en direct** ou au **redémarrage** ; l'enregistrement
-  écrit `config.yaml` et un bouton relance Jarvis si besoin.
-- Raccourcis : `Espace` parler, `S` stop, `Entrée` / `Échap` pour confirmer ou refuser.
+- An animated reactor that responds to your voice and Jarvis's, with one color per state:
+  idle, listening, thinking, speaking, confirming.
+- Live log: what you said, what Jarvis answered, each action with its
+  level and duration.
+- System stats (CPU, memory, battery), on-screen activity, timers, latency of the last exchange.
+- **Talk** button (no "Hey Jarvis" needed), **Stop**, **Local / Claude** toggle.
+- **Settings**: first name, engine, microphone, end-of-sentence silence, voice, screen, models, permissions.
+  Each setting says whether it applies **live** or on **restart**; saving
+  writes `config.yaml` and a button restarts Jarvis if needed.
+- Shortcuts: `Space` to talk, `S` to stop, `Enter` / `Esc` to confirm or decline.
 
-Elle s'ouvre dans une fenêtre native (WebKit sur macOS, WebView2 sous Windows). Le serveur
-n'écoute que ta machine (127.0.0.1), refuse les autres noms d'hôte et exige le jeton aléatoire
-de la session. Aperçu sans charger les modèles : `uv run jarvis hud`.
+It opens in a native window (WebKit on macOS, WebView2 on Windows). The server
+only listens on your machine (127.0.0.1), rejects other host names and requires the session's random
+token. Preview without loading the models: `uv run jarvis hud`.
 
-## Mot d'activation
+## Wake word
 
-Sensibilité par défaut **0,25**, choisie par la mesure : 25 enregistrements de « Hey Jarvis » (quatre voix,
-plusieurs formulations) face à cinq minutes de parole française et de bruit.
+Default sensitivity **0.25**, chosen by measurement: 25 recordings of "Hey Jarvis" (four voices,
+several phrasings) against five minutes of French speech and noise.
 
-| Situation | Seuil 0,5 (avant) | Seuil 0,25 |
+| Situation | Threshold 0.5 (before) | Threshold 0.25 |
 |---|---|---|
-| Au calme | 96 % | 100 % |
-| Bruit de fond modéré | 73 % | 96 % |
-| Bruit de fond fort | 48 % | 83 % |
-| Pendant que Jarvis parle (lui couper la parole) | 64 % | 80 % |
-| Réveils intempestifs (5 min de parole et de bruit) | 0 | 0 |
+| Quiet | 96% | 100% |
+| Moderate background noise | 73% | 96% |
+| Loud background noise | 48% | 83% |
+| While Jarvis is speaking (interrupting it) | 64% | 80% |
+| False wake-ups (5 min of speech and noise) | 0 | 0 |
 
-- **Dire simplement « Jarvis » suffit** : le modèle le reconnaît aussi bien.
-- **Raccourci clavier Ctrl+Alt+J** (réglable, ou vide pour aucun) : réveille Jarvis sans parler, et le
-  coupe s'il parle. Windows l'enregistre sans autorisation ; macOS demande « Surveillance de l'entrée »
-  au premier lancement. Un raccourci déjà pris par une autre application est signalé.
-- Quand Jarvis reconnaît le mot à moitié, il l'écrit dans le journal et dans l'interface
-  (« j'ai cru entendre… score 0,18 ») : de quoi régler la sensibilité au lieu de répéter dans le vide.
-- **Le volume n'entre pas en jeu** : mesuré, le score est identique de 0 à −30 dB. Parler plus fort ne
-  sert à rien, s'éloigner du bruit oui.
-- Le pas d'analyse de 80 ms n'est pas réglable : l'affiner à 40 ms fait *chuter* la détection de 73 à
-  23 % dans le bruit, parce que les 16 embeddings du classifieur ne couvrent plus la durée du mot.
+- **Just saying "Jarvis" is enough**: the model recognizes it just as well.
+- **Keyboard shortcut Ctrl+Alt+J** (configurable, or empty for none): wakes Jarvis without speaking, and
+  interrupts it if it's talking. Windows registers it without permission; macOS asks for "Input Monitoring"
+  on first launch. A shortcut already taken by another app is reported.
+- When Jarvis half-recognizes the word, it writes it in the log and in the interface
+  ("I think I heard… score 0.18"): enough to tune the sensitivity instead of repeating yourself in vain.
+- **Volume plays no role**: measured, the score is identical from 0 to −30 dB. Speaking louder doesn't
+  help; moving away from the noise does.
+- The 80 ms analysis step isn't adjustable: refining it to 40 ms makes detection *drop* from 73 to
+  23% in noise, because the classifier's 16 embeddings no longer cover the length of the word.
 
-### Changer de mot (« Hey Friday », « Salut Karl »…)
+### Changing the word ("Hey Friday", "Salut Karl"…)
 
-Réglages → Écoute → **Mot d'activation** (ou `wakeword.phrase` dans `config.yaml`), puis redémarrer.
-Le modèle dédié ne connaît que « Jarvis » ; tout autre mot est reconnu autrement : le détecteur de voix
-repère une phrase courte suivie d'un silence, Whisper la transcrit en sachant quel mot attendre, et elle
-doit être le mot seul, salutation comprise. **C'est moins fiable que « Hey Jarvis »**, mesuré sur voix de synthèse :
+Settings → Listening → **Wake word** (or `wakeword.phrase` in `config.yaml`), then restart.
+The dedicated model only knows "Jarvis"; any other word is recognized differently: the voice detector
+spots a short phrase followed by silence, Whisper transcribes it knowing which word to expect, and it
+must be the word alone, greeting included. **It's less reliable than "Hey Jarvis"**, measured on synthetic voices:
 
-| Mesure | Résultat |
+| Measure | Result |
 |---|---|
-| Réveils, 40 appels (5 mots, 4 voix) | 52 % (« Hey Friday » 8/8, « Hey Nova » 6/8 ; « Ok Maison » 0/8, inaudible même sans amorce) |
-| Intempestifs, 60 phrases proches (« Salut Carole », « La maison »…) | 2 |
-| Bout en bout (vrai détecteur de voix) : réveils / intempestifs | 6/9 · 0/21 |
-| Coût d'une phrase courte entendue (Mac M3) | ~360 ms de Whisper ; les phrases longues sont ignorées |
+| Wake-ups, 40 calls (5 words, 4 voices) | 52% ("Hey Friday" 8/8, "Hey Nova" 6/8; "Ok Maison" 0/8, inaudible even without a lead-in) |
+| False wake-ups, 60 similar phrases ("Salut Carole", "La maison"…) | 2 |
+| End to end (real voice detector): wake-ups / false wake-ups | 6/9 · 0/21 |
+| Cost of a short phrase being heard (Mac M3) | ~360 ms of Whisper; long sentences are ignored |
 
-- **Marque une courte pause après le mot** : « Hey Friday, ouvre Spotify » d'une traite est une phrase, pas un appel.
-- Préfère un **nom distinctif de deux syllabes** ; au moins 4 lettres, 3 mots au plus (sinon refusé).
-- Remettre « Hey Jarvis » revient au modèle dédié. Jarvis garde son nom dans ses réponses.
-- Non mesuré sur Windows (faster-whisper sur processeur) : chaque phrase courte y coûtera plus cher.
+- **Pause briefly after the word**: "Hey Friday, ouvre Spotify" said in one breath is a sentence, not a call.
+- Prefer a **distinctive two-syllable name**; at least 4 letters, 3 words at most (otherwise rejected).
+- Switching back to "Hey Jarvis" returns to the dedicated model. Jarvis keeps its name in its replies.
+- Not measured on Windows (faster-whisper on CPU): each short phrase will cost more there.
 
-## Compréhension de la voix
+## Speech understanding
 
-- **Vocabulaire** : Whisper reçoit les noms de tes applications et les commandes courantes. Sur
-  48 commandes enregistrées par des voix de synthèse, les bonnes commandes passent de **15 à 26**.
-- **Garde-fous** : si le vocabulaire fait dérailler Whisper (boucle, phrase fantôme), la phrase est
-  retranscrite aussitôt sans lui ; la longueur d'une transcription est plafonnée.
-- **Noms mal entendus** : la recherche d'application compare aussi la prononciation
+- **Vocabulary**: Whisper is given the names of your apps and common commands. On
+  48 commands recorded with synthetic voices, correct commands go from **15 to 26**.
+- **Safeguards**: if the vocabulary derails Whisper (loop, phantom sentence), the phrase is
+  transcribed again right away without it; transcription length is capped.
+- **Misheard names**: app search also compares pronunciation
   (« Spotifaille » → Spotify).
-- **Hésitations** : « Ouvre… euh… » ne part pas tout de suite, Jarvis attend la fin de la phrase.
+- **Hesitations**: « Ouvre… euh… » doesn't fire right away; Jarvis waits for the end of the sentence.
 
 ## Installation
 
@@ -420,8 +423,8 @@ uv run jarvis setup
 uv run jarvis
 ```
 
-Au premier lancement, macOS demande l'accès au micro, à l'enregistrement de l'écran et au
-pilotage de Spotify ou Musique : accepte.
+On first launch, macOS asks for access to the microphone, screen recording and
+control of Spotify or Music: accept.
 
 ### Windows 10/11
 
@@ -429,50 +432,50 @@ pilotage de Spotify ou Musique : accepte.
 winget install astral-sh.uv Ollama.Ollama
 git clone https://github.com/sacha9214/jarvis-vocal.git
 cd jarvis-vocal
-uv sync                 # avec un GPU NVIDIA : uv sync --extra cuda
+uv sync                 # with an NVIDIA GPU: uv sync --extra cuda
 uv run jarvis setup
 uv run jarvis
 ```
 
-Tout mettre à jour d'un coup :
+Update everything at once:
 
 ```powershell
 winget upgrade --id Ollama.Ollama; winget upgrade --id astral-sh.uv; git pull; uv sync; claude update
 ```
 
-`jarvis setup` télécharge le LLM (~4 Go), Whisper (~0,5 Go), les voix (~1,3 Go) et les petits
-modèles d'écoute. Les modèles d'écoute et la voix Piper sont vérifiés par empreinte SHA-256.
+`jarvis setup` downloads the LLM (~4 GB), Whisper (~0.5 GB), the voices (~1.3 GB) and the small
+listening models. The listening models and the Piper voice are verified by SHA-256 hash.
 
-**Ollama doit tourner** pour le mode local et l'analyse d'écran (application Ollama, ou
-`brew services start ollama` sur Mac). Le mode Claude, la voix et l'interface fonctionnent sans.
+**Ollama must be running** for local mode and screen analysis (Ollama app, or
+`brew services start ollama` on a Mac). Claude mode, the voice and the interface work without it.
 
-## LLM sur une autre machine du réseau
+## LLM on another machine on the network
 
-Le modèle local peut tourner sur un autre ordinateur (un PC avec une bonne carte graphique, par
-exemple) : Jarvis lui parle par le réseau, le micro, la voix et les captures restent ici.
+The local model can run on another computer (a PC with a good graphics card, for
+example): Jarvis talks to it over the network, while the microphone, voice and screenshots stay here.
 
-1. Sur la machine qui héberge le modèle : `ollama pull qwen3.5:9b`, puis fais écouter Ollama sur le
-   réseau avec la variable d'environnement `OLLAMA_HOST=0.0.0.0` (Windows : dans les variables
-   d'environnement, puis relance Ollama ; macOS : `launchctl setenv OLLAMA_HOST 0.0.0.0` et relance
-   l'application) et ouvre le port 11434 dans son pare-feu.
-2. Ici, dans les réglages (« Serveur Ollama ») ou dans `config.yaml` :
+1. On the machine hosting the model: `ollama pull qwen3.5:9b`, then make Ollama listen on the
+   network with the environment variable `OLLAMA_HOST=0.0.0.0` (Windows: in the environment
+   variables, then restart Ollama; macOS: `launchctl setenv OLLAMA_HOST 0.0.0.0` and restart
+   the app) and open port 11434 in its firewall.
+2. Here, in the settings ("Ollama server") or in `config.yaml`:
 
 ```yaml
 llm:
   host: http://192.168.1.20:11434
-  model: auto          # prend le plus gros qwen3.5 du serveur ; ou un nom précis
+  model: auto          # picks the largest qwen3.5 on the server; or a specific name
 ```
 
-- `jarvis doctor` dit si le serveur répond et quel modèle est choisi ; un modèle absent est signalé
-  avec la liste de ceux qui existent là-bas.
-- **Les captures d'écran ne partent pas sur le réseau** : l'analyse d'écran garde l'Ollama de cette
-  machine. Pour l'envoyer aussi au serveur distant, mets son adresse dans `screen.host` (réglage
-  « Serveur Ollama pour l'écran »), en connaissance de cause.
-- La review de code locale et les questions passent par le serveur distant : c'est du texte.
+- `jarvis doctor` tells you whether the server responds and which model is chosen; a missing model is reported
+  along with the list of models available there.
+- **Screenshots don't go over the network**: screen analysis keeps using this
+  machine's Ollama. To send it to the remote server too, put its address in `screen.host` (setting
+  "Ollama server for the screen"), knowingly.
+- Local code review and questions go through the remote server: it's just text.
 
-## Commandes personnalisées
+## Custom commands
 
-Tes phrases, tes actions, dans `config.yaml` (`jarvis doctor` valide la section) :
+Your phrases, your actions, in `config.yaml` (`jarvis doctor` validates the section):
 
 ```yaml
 commands:
@@ -496,203 +499,203 @@ commands:
     args: { seconds: 180, label: thé }
 ```
 
-- Une action par commande : `run` (ligne de commande, lancée dans ton dossier personnel), `open`
-  (adresse web, fichier ou dossier), `keys` (raccourci dans l'application au premier plan) ou `tool`
-  (une action de Jarvis, avec `args`).
-- `*` dans une phrase capture ce que tu dis à cet endroit, disponible en `{text}` dans `run`, `open`,
-  `args` et `reply` (guillemets et `$` retirés avant le shell).
-- `confirm: true` fait demander confirmation (N2, mémorisable par « toujours ») ; `speak_output: true`
-  lit la sortie de la commande (20 s maximum).
-- Les phrases sont reconnues **sans LLM**, accents et ponctuation ignorés. Le modèle les voit aussi
-  comme outils `custom_<nom>` : « tu peux ouvrir mon projet ? » marche même sans la phrase exacte.
+- One action per command: `run` (command line, run from your home folder), `open`
+  (web address, file or folder), `keys` (shortcut in the foreground app) or `tool`
+  (a Jarvis action, with `args`).
+- `*` in a phrase captures what you say at that point, available as `{text}` in `run`, `open`,
+  `args` and `reply` (quotes and `$` are stripped before reaching the shell).
+- `confirm: true` asks for confirmation (N2, can be remembered with « toujours »); `speak_output: true`
+  reads the command's output aloud (20 s maximum).
+- Phrases are recognized **without the LLM**, ignoring accents and punctuation. The model also sees them
+  as `custom_<name>` tools: « tu peux ouvrir mon projet ? » works even without the exact phrase.
 
-## Utiliser ton abonnement Claude
+## Using your Claude subscription
 
-1. Installe [Claude Code](https://code.claude.com) et connecte-toi une fois, dans ton
-   terminal : `claude auth login`.
-2. Dis « Hey Jarvis, passe sur Claude », clique sur **CLAUDE** dans l'interface, ou mets
-   `llm.backend: claude` dans les réglages.
+1. Install [Claude Code](https://code.claude.com) and sign in once, in your
+   terminal: `claude auth login`.
+2. Say « Hey Jarvis, passe sur Claude », click **CLAUDE** in the interface, or set
+   `llm.backend: claude` in the settings.
 
-- **Dans les règles.** Jarvis lance le programme officiel `claude`, non modifié, et lit
-  sa sortie. Il ne lit, ne stocke ni ne transmet jamais tes identifiants : la connexion
-  passe par le flux d'Anthropic, comme le prévoit la page *Legal and compliance* de Claude
-  Code. Réutiliser directement les jetons d'un abonnement dans une autre application est interdit.
-- **Rapide.** Un seul processus `claude` reste ouvert pendant toute la session. Modèle par
-  défaut : `haiku`, le plus rapide à répondre.
-- **Isolé.** Rien de ton `~/.claude` n'est chargé : ni CLAUDE.md, ni mémoire, ni hooks, ni
-  plugins, ni connecteurs, ni outils intégrés.
-- **Tolérant.** Si Claude échoue avant de répondre (hors ligne, limite atteinte, connexion
-  expirée), Jarvis le dit et répond en local.
+- **By the rules.** Jarvis launches the official, unmodified `claude` program and reads
+  its output. It never reads, stores or transmits your credentials: sign-in
+  goes through Anthropic's own flow, as described on Claude Code's *Legal and compliance*
+  page. Reusing a subscription's tokens directly in another application is prohibited.
+- **Fast.** A single `claude` process stays open for the whole session. Default
+  model: `haiku`, the quickest to respond.
+- **Isolated.** Nothing from your `~/.claude` is loaded: no CLAUDE.md, no memory, no hooks, no
+  plugins, no connectors, no built-in tools.
+- **Resilient.** If Claude fails before answering (offline, limit reached, expired
+  session), Jarvis says so and answers locally.
 
-## Commandes
+## Commands
 
-| Commande | Rôle |
+| Command | Role |
 |---|---|
-| `uv run jarvis` | lance l'assistant et son interface (`--ui browser` ou `--ui none` au besoin) |
-| `uv run jarvis hud` | aperçu de l'interface avec des données simulées |
-| `uv run jarvis extension` | prépare l'extension navigateur et explique comment l'ajouter |
-| `uv run jarvis code` | empaquette l'extension VS Code et l'installe dans les éditeurs trouvés |
-| `uv run jarvis setup` | télécharge les modèles adaptés à ta machine |
-| `uv run jarvis doctor` | vérifie Ollama, Claude Code, les voix, le micro et la sortie audio |
-| `uv run jarvis bench` | mesure la latence de chaque étage (`--backend claude` pour Claude) |
-| `uv run jarvis devices` | liste les périphériques audio |
+| `uv run jarvis` | starts the assistant and its interface (`--ui browser` or `--ui none` if needed) |
+| `uv run jarvis hud` | previews the interface with simulated data |
+| `uv run jarvis extension` | prepares the browser extension and explains how to add it |
+| `uv run jarvis code` | packages the VS Code extension and installs it in the editors found |
+| `uv run jarvis setup` | downloads the models suited to your machine |
+| `uv run jarvis doctor` | checks Ollama, Claude Code, the voices, the microphone and audio output |
+| `uv run jarvis bench` | measures each stage's latency (`--backend claude` for Claude) |
+| `uv run jarvis devices` | lists audio devices |
 
-| À la voix | Effet |
+| By voice | Effect |
 |---|---|
-| « Hey Jarvis » (ou juste « Jarvis ») | réveille Jarvis, ou lui coupe la parole |
-| **Ctrl+Alt+J**, depuis n'importe quelle application | pareil, sans parler |
-| « passe sur Claude » / « passe en local » | change de moteur |
-| « quel modèle tu utilises ? » | dit le moteur actif |
-| « quelle heure est-il ? », « on est quel jour ? » | réponse instantanée |
-| « stop » | le remet en veille |
+| "Hey Jarvis" (or just "Jarvis") | wakes Jarvis, or interrupts it |
+| **Ctrl+Alt+J**, from any app | same, without speaking |
+| « passe sur Claude » / « passe en local » | switches engine |
+| « quel modèle tu utilises ? » | tells you the active engine |
+| « quelle heure est-il ? », « on est quel jour ? » | instant answer |
+| « stop » | puts it back to sleep |
 
 ## Architecture
 
 ```
 src/jarvis/
-  audio/      micro, sortie, mot d'activation, VAD, capture d'une phrase
-  stt/        Whisper (mlx, faster-whisper), vocabulaire et garde-fous
-  tts/        Pocket TTS (voix naturelle), Piper (secours)
-  llm/        Ollama, Claude Code, routeur local/Claude avec repli
-  tools/      registre des actions, permissions N1/N2/N3, serveur MCP
-  browser/    extension navigateur, pont WebSocket local (navigateur et éditeur), Safari par AppleScript
-  editor/     extension VS Code (JS pur), empaquetage VSIX et installation
-  review/     projet ouvert dans l'éditeur, review par Claude (lecture seule) ou par le modèle local
-  desktop/    lecture et pilotage de toute application (UI Automation, accessibilité macOS)
-  system/     applications, fenêtre active, volume, lecture, dossiers, alimentation (macOS + Windows)
-  vision/     analyse de l'écran par le modèle local
-  ui/         interface : page, API des réglages, fenêtre native
-  commands.py commandes vocales reconnues sans LLM
-  custom.py   commandes personnalisées de config.yaml (phrases → shell, ouverture, raccourci, outil)
-  pipeline.py la boucle de conversation
-  server.py   serveur local (127.0.0.1, jeton de session)
+  audio/      microphone, output, wake word, VAD, capturing a sentence
+  stt/        Whisper (mlx, faster-whisper), vocabulary and safeguards
+  tts/        Pocket TTS (natural voice), Piper (fallback)
+  llm/        Ollama, Claude Code, local/Claude router with fallback
+  tools/      action registry, N1/N2/N3 permissions, MCP server
+  browser/    browser extension, local WebSocket bridge (browser and editor), Safari via AppleScript
+  editor/     VS Code extension (plain JS), VSIX packaging and installation
+  review/     project open in the editor, review by Claude (read-only) or by the local model
+  desktop/    reading and controlling any app (UI Automation, macOS accessibility)
+  system/     apps, active window, volume, playback, folders, power (macOS + Windows)
+  vision/     screen analysis by the local model
+  ui/         interface: page, settings API, native window
+  commands.py voice commands recognized without the LLM
+  custom.py   custom commands from config.yaml (phrases → shell, open, shortcut, tool)
+  pipeline.py the conversation loop
+  server.py   local server (127.0.0.1, session token)
 ```
 
-## Réduire la mémoire utilisée
+## Reducing memory usage
 
-Mesuré poste par poste sur un MacBook Air M3 de 16 Go :
+Measured item by item on a 16 GB MacBook Air M3:
 
-| Poste | Mémoire |
+| Item | Memory |
 |---|---|
-| Modèle local, dans Ollama | 4,1 Go |
-| Voix Pocket TTS | 760 Mo |
-| Whisper, une fois chauffé | 730 Mo |
-| Mot d'activation et détection de voix | 140 Mo |
-| Python, torch, onnxruntime | 230 Mo |
+| Local model, in Ollama | 4.1 GB |
+| Pocket TTS voice | 760 MB |
+| Whisper, once warmed up | 730 MB |
+| Wake word and voice detection | 140 MB |
+| Python, torch, onnxruntime | 230 MB |
 
-### Mode léger
+### Light mode
 
-Réglages → Général → **Mode** (`mode: leger` dans `config.yaml`), puis redémarrer. Il met Claude comme
-moteur, la voix Piper, et coupe l'analyse de l'écran (elle ne peut être que locale, donc rechargerait Qwen).
-Mesuré sur MacBook Air M3, mémoire réellement occupée (`footprint`), un processus neuf par combinaison :
+Settings → General → **Mode** (`mode: leger` in `config.yaml`), then restart. It sets Claude as the
+engine, the Piper voice, and turns off screen analysis (which can only run locally, so it would reload Qwen).
+Measured on a MacBook Air M3, actual memory footprint (`footprint`), a fresh process per combination:
 
-| Combinaison | Mémoire | Mots justes* | Transcription |
+| Combination | Memory | Correct words* | Transcription |
 |---|---|---|---|
-| **Complet** : Qwen (Ollama) + Jarvis avec Fantine | **~6,5 Go** (4,1 + 2,4) | 82 % | 366 ms |
-| **Léger** : Claude + Jarvis avec Piper | **~1,45 Go** (0,18 + 1,25) | 82 % | 367 ms |
-| Léger + Whisper small | ~1,6 Go (1,4 Go pour Jarvis) | 71 % | 127 ms |
-| Léger + Whisper small q4 | ~1,1 Go | 67 % | 108 ms |
-| Léger + Whisper base | ~0,85 Go | 56 % | 43 ms |
+| **Full**: Qwen (Ollama) + Jarvis with Fantine | **~6.5 GB** (4.1 + 2.4) | 82% | 366 ms |
+| **Light**: Claude + Jarvis with Piper | **~1.45 GB** (0.18 + 1.25) | 82% | 367 ms |
+| Light + Whisper small | ~1.6 GB (1.4 GB for Jarvis) | 71% | 127 ms |
+| Light + Whisper small q4 | ~1.1 GB | 67% | 108 ms |
+| Light + Whisper base | ~0.85 GB | 56% | 43 ms |
 
-\* 24 commandes dites par deux voix de synthèse (valeur relative : les voix de synthèse sont plus difficiles
-à comprendre qu'une vraie voix). Whisper n'est donc pas réduit : c'est la voix Fantine et PyTorch qui
-pesaient 1,1 Go, pas lui. Le mode léger garde le repli sur le modèle local si Claude échoue, qui
-rechargerait alors ses 4 Go. Non mesuré sous Windows. Le prix : tes questions partent chez Anthropic,
-et la voix est moins humaine.
+\* 24 commands spoken by two synthetic voices (relative value: synthetic voices are harder
+to understand than a real voice). So Whisper isn't downsized: it was the Fantine voice and PyTorch that
+weighed 1.1 GB, not Whisper. Light mode keeps the fallback to the local model if Claude fails, which
+would then reload its 4 GB. Not measured on Windows. The trade-off: your questions go to Anthropic,
+and the voice is less human.
 
-**Ce qui libère de la mémoire sans rien perdre :**
+**What frees memory at no cost:**
 
-- **Passer sur Claude rend les 3,6 Go du modèle local.** Dis « passe sur Claude » et Jarvis décharge
-  le modèle qui ne sert plus. Il se recharge tout seul au retour. Réglage « Libérer la mémoire en
-  passant sur Claude », actif par défaut.
-- **Baisser « Garder le modèle en mémoire »** de 30 à 5 minutes rend les mêmes 3,6 Go dès que tu ne
-  parles plus. Prix mesuré : 1,3 seconde de rechargement sur la première question après la pause,
-  en partie masquée par la préchauffe déclenchée quand tu dis « Hey Jarvis ».
+- **Switching to Claude gives back the local model's 3.6 GB.** Say « passe sur Claude » and Jarvis unloads
+  the model it no longer needs. It reloads automatically when you switch back. Setting "Free memory when
+  switching to Claude", on by default.
+- **Lowering "Keep the model in memory"** from 30 to 5 minutes gives back the same 3.6 GB as soon as you stop
+  talking. Measured cost: 1.3 seconds of reloading on the first question after the pause,
+  partly hidden by the warm-up triggered when you say "Hey Jarvis".
 
-**Ce qui se paie, à toi de voir :**
+**What comes at a price, your call:**
 
-- **Voix Piper** au lieu de Pocket TTS : 760 Mo de moins, une voix nettement moins humaine.
-- **Modèle `qwen3.5:2b`** au lieu de `4b` : 930 Mo de moins et des réponses 0,3 s plus rapides, mais
-  la qualité chute. Mesuré sur 24 demandes, les deux choisissent aussi bien leurs outils (18 sur 24) ;
-  en revanche, sur des questions ouvertes, le 2b a répondu « une pâte brune » pour un plat de pâtes et
-  « Konnichiwa pour l'honneur » pour dire bonjour en japonais. Je ne le recommande pas.
+- **Piper voice** instead of Pocket TTS: 760 MB less, a noticeably less human voice.
+- **`qwen3.5:2b` model** instead of `4b`: 930 MB less and answers 0.3 s faster, but
+  quality drops. Measured on 24 requests, both pick their tools equally well (18 out of 24);
+  on open questions, however, the 2b answered "a brown dough" for a pasta dish and
+  "Konnichiwa for the honor" for saying hello in Japanese. I don't recommend it.
 
-## Optimisations essayées et écartées
+## Optimizations tried and rejected
 
-Mesurées sur un MacBook Air M3, pour qu'elles ne soient pas retentées à l'aveugle :
+Measured on a MacBook Air M3, so they don't get retried blindly:
 
-| Idée | Résultat mesuré |
+| Idea | Measured result |
 |---|---|
-| Analyser l'audio tous les 40 ms au lieu de 80 pour mieux entendre le mot d'activation | Détection **effondrée** : 73 → 23 % dans le bruit. Le classifieur ne voit plus la durée du mot |
-| Faire tourner le mot d'activation sur le Neural Engine (CoreML) | **1,5 fois plus lent** : les modèles sont petits et découpés en 5 partitions, les allers-retours coûtent plus que le calcul |
-| Ignorer les trames silencieuses avant le modèle | 3 détections perdues sur 25, pour 5 à 13 % de calcul économisé. Le modèle a besoin d'un flux continu |
-| Nourrir le modèle par blocs de 80 ms au lieu de 32 | Aucun gain mesurable (7,3 → 7,8 %, dans le bruit de mesure) |
-| Réduire la fenêtre de contexte du modèle local | Ne libère que 50 Mo : 4,07 Go à 4 096 tokens contre 4,12 Go à 8 192 |
-| Quantifier la voix Pocket TTS | **Pire des deux côtés** : 2,0 Go au lieu de 1,7, et deux fois plus lente à générer |
-| Vider le cache mémoire de MLX après chaque transcription | Le cache passe bien de 708 Mo à zéro, mais **le système ne récupère rien** : la mémoire du processus ne bouge pas d'un mégaoctet |
-| Forcer le mode hors ligne de HuggingFace au démarrage | Aucun gain (3 455 contre 3 660 ms, dans le bruit) |
+| Analyze audio every 40 ms instead of 80 to hear the wake word better | Detection **collapsed**: 73 → 23% in noise. The classifier no longer sees the word's duration |
+| Run the wake word on the Neural Engine (CoreML) | **1.5× slower**: the models are small and split into 5 partitions; the round trips cost more than the compute |
+| Skip silent frames before the model | 3 detections lost out of 25, for 5 to 13% compute saved. The model needs a continuous stream |
+| Feed the model 80 ms blocks instead of 32 | No measurable gain (7.3 → 7.8%, within measurement noise) |
+| Shrink the local model's context window | Frees only 50 MB: 4.07 GB at 4,096 tokens vs. 4.12 GB at 8,192 |
+| Quantize the Pocket TTS voice | **Worse on both counts**: 2.0 GB instead of 1.7, and twice as slow to generate |
+| Clear MLX's memory cache after each transcription | The cache does drop from 708 MB to zero, but **the system reclaims nothing**: the process memory doesn't move by a megabyte |
+| Force HuggingFace offline mode at startup | No gain (3,455 vs. 3,660 ms, within noise) |
 
-Ce qui reste pour alléger vraiment relève du compromis, pas de l'optimisation : la voix Piper à la
-place de Pocket TTS libère 1,7 Go avec un rendu moins humain, et `qwen3.5:2b` à la place de `4b`
-libère environ 2 Go avec des réponses moins fines. Les deux se changent dans les réglages.
+What's left to really slim it down is a trade-off, not an optimization: the Piper voice
+instead of Pocket TTS frees 1.7 GB with a less human sound, and `qwen3.5:2b` instead of `4b`
+frees about 2 GB with less nuanced answers. Both can be changed in the settings.
 
-## Limites connues
+## Known limitations
 
-- **16 Go de mémoire, c'est juste** : LLM (~4,1 Go), Whisper, voix naturelle (~0,8 Go) et tes
-  applications se partagent la mémoire. Si le Mac swappe, tout ralentit : ferme les applications
-  lourdes, ou prends `qwen3.5:2b-mlx` et la voix Piper dans les réglages. Garde-fous : l'analyse
-  d'écran attend quand il reste moins de 1,5 Go libres (`screen.min_free_gb`), Whisper rend ses
-  tampons Metal après chaque phrase, et le cache du modèle n'est rechauffé qu'au « Hey Jarvis »
-  suivant (mesuré : 1,6 à 2,3 s de GPU à chaque rechauffe, inutile si personne ne parle).
-- **Fenêtre de contexte** : mesuré, le prompt fait déjà 2 936 tokens à vide en contexte éditeur
-  (27 outils) ; `llm.num_ctx` est donc à 8 192. En dessous, Ollama tronque le prompt sans prévenir.
-  Le cache d'Ollama n'est valable que pour une liste d'outils donnée : Jarvis chauffe donc, au
-  « Hey Jarvis », le prompt avec les outils du contexte où tu es (navigateur, éditeur, application).
-  Mesuré : 1,5 s de préremplissage évitée par question dans ces contextes (0,02 s au lieu de 1,51 s).
-  `jarvis bench` mesure sans outils : la vraie question avec outils coûte le même prix grâce au cache.
-- **En cas de plantage** : tout est dans `logs/jarvis.log` du dossier de données (`jarvis doctor`
-  affiche le chemin) ; un plantage natif (MLX, torch, PortAudio) laisse sa pile dans `logs/crash.log`.
-  Une ligne « 💾 » par conversation donne mémoire, swap, trames micro perdues et nombre de fils.
-- **Micro perdu** (débranché, pris par une autre application, session verrouillée) : Jarvis le dit au
-  bout de trois secondes et rouvre le flux tout seul toutes les cinq secondes jusqu'à ce qu'il revienne.
-  Il ne réinitialise pas PortAudio pour autant : mesuré, cela couperait sa propre voix.
-- **Consommation en veille** : 1,4 s de processeur par 20 s d'écoute, soit **7 à 8 % d'un cœur** sur un
-  MacBook Air M3. Presque tout est dans le modèle du mot d'activation : recevoir l'audio et publier les
-  niveaux ne coûtent que 0,7 %. Il n'y a donc rien à gagner côté code. (Une première mesure annonçait
-  1,3 % : elle traitait l'audio en boucle serrée, donc sur un cœur de performance à pleine fréquence.
-  En vrai, le travail est étalé dans le temps et tombe sur un cœur d'efficacité, plus lent. La quantité
-  de calcul est la même, la part d'un cœur non.)
-- **Pas d'annulation d'écho** : sans casque, le micro entend Jarvis. Un garde-fou ignore
-  ce qu'il vient de dire et la coupure passe par « Hey Jarvis ».
-- **Windows** : validé par la CI (installation, lint, tests) mais pas encore sur une vraie
-  machine avec micro. La voix naturelle y dépend de la puissance du processeur (Piper sinon).
-- **Applications** : la lecture et la saisie sont vérifiées pour de vrai (TextEdit sur macOS, Bloc-notes
-  sur la CI Windows), mais certaines applications exposent peu de choses à l'accessibilité (jeux, applications
-  Electron mal étiquetées) : Jarvis dit alors qu'il ne voit rien plutôt que de cliquer au hasard.
-- **Review locale** : sur un fichier piégé de 5 bugs, `qwen3.5:4b` en trouve 4 (secret en dur, injection
-  SQL, division par zéro, valeur par défaut mutable) sans fausse alerte, mais signale aussi un faux problème
-  sur un fichier sain du projet (~7 s par fichier). Elle repère les erreurs flagrantes ; pour une vraie
-  review, passe par Claude.
-- **VS Code** : la lecture du terminal n'est pas exposée par l'API des extensions (Jarvis ne lit pas la
-  sortie d'une commande) ; dans un dossier « non approuvé », VS Code bloque lui-même l'exécution.
-- **Navigateur** : vérifié pour de vrai dans Firefox (connexion, lecture de page, onglets, reprise après
-  la mise en veille de la page d'arrière-plan) ; deux défauts trouvés à cette occasion et corrigés : la
-  politique de sécurité MV3 de Firefox transformait `ws://` en `wss://` (le pont recevait un handshake
-  TLS), et les actions écrites en méthode raccourcie ne s'injectaient pas. Chrome, Edge, Brave ne sont
-  pas encore vérifiés en vrai (Chrome 137+ n'accepte plus `--load-extension` en test automatique). Les
-  pages internes (`chrome://`, boutique d'extensions) restent inaccessibles.
-- **Voix de test** : les mesures de compréhension utilisent des voix de synthèse, plus dures à
-  transcrire qu'une vraie voix.
+- **16 GB of memory is tight**: the LLM (~4.1 GB), Whisper, the natural voice (~0.8 GB) and your
+  apps share memory. If the Mac swaps, everything slows down: close heavy
+  apps, or pick `qwen3.5:2b-mlx` and the Piper voice in the settings. Safeguards: screen
+  analysis waits when less than 1.5 GB is free (`screen.min_free_gb`), Whisper releases its
+  Metal buffers after each sentence, and the model's cache is only rewarmed at the next "Hey Jarvis"
+  (measured: 1.6 to 2.3 s of GPU per rewarm, pointless if nobody is talking).
+- **Context window**: measured, the prompt is already 2,936 tokens when empty in the editor context
+  (27 tools), so `llm.num_ctx` is set to 8,192. Below that, Ollama silently truncates the prompt.
+  Ollama's cache is only valid for a given tool list, so at "Hey Jarvis" Jarvis warms the
+  prompt with the tools of the context you're in (browser, editor, app).
+  Measured: 1.5 s of prefill avoided per question in those contexts (0.02 s instead of 1.51 s).
+  `jarvis bench` measures without tools: the real question with tools costs the same thanks to the cache.
+- **If it crashes**: everything is in `logs/jarvis.log` in the data folder (`jarvis doctor`
+  shows the path); a native crash (MLX, torch, PortAudio) leaves its stack trace in `logs/crash.log`.
+  A "💾" line per conversation gives memory, swap, dropped microphone frames and thread count.
+- **Microphone lost** (unplugged, taken by another app, session locked): Jarvis says so after
+  three seconds and reopens the stream on its own every five seconds until it's back.
+  It doesn't reinitialize PortAudio, though: measured, that would cut off its own voice.
+- **Idle consumption**: 1.4 s of CPU per 20 s of listening, i.e. **7 to 8% of one core** on a
+  MacBook Air M3. Almost all of it is the wake word model: receiving audio and publishing
+  levels costs only 0.7%. So there's nothing to gain on the code side. (A first measurement showed
+  1.3%: it processed audio in a tight loop, hence on a performance core at full frequency.
+  In reality, the work is spread over time and lands on a slower efficiency core. The amount
+  of computation is the same; the share of a core isn't.)
+- **No echo cancellation**: without headphones, the microphone hears Jarvis. A safeguard ignores
+  what it just said, and interrupting goes through "Hey Jarvis".
+- **Windows**: validated by CI (installation, lint, tests) but not yet on a real
+  machine with a microphone. The natural voice there depends on CPU power (Piper otherwise).
+- **Apps**: reading and typing are verified for real (TextEdit on macOS, Notepad
+  on Windows CI), but some apps expose little to accessibility (games, poorly labeled Electron
+  apps): Jarvis then says it can't see anything rather than clicking at random.
+- **Local review**: on a file seeded with 5 bugs, `qwen3.5:4b` finds 4 (hardcoded secret, SQL
+  injection, division by zero, mutable default argument) with no false alarm, but also flags a non-issue
+  in a clean project file (~7 s per file). It catches glaring mistakes; for a real
+  review, use Claude.
+- **VS Code**: terminal output isn't exposed by the extension API (Jarvis can't read the
+  output of a command); in an "untrusted" folder, VS Code itself blocks execution.
+- **Browser**: verified for real in Firefox (connection, page reading, tabs, recovery after
+  the background page is suspended); two bugs found along the way and fixed: Firefox's
+  MV3 security policy upgraded `ws://` to `wss://` (the bridge received a TLS
+  handshake), and actions written as shorthand methods weren't injected. Chrome, Edge and Brave are
+  not yet verified for real (Chrome 137+ no longer accepts `--load-extension` in automated tests). Internal
+  pages (`chrome://`, extension store) remain inaccessible.
+- **Test voices**: speech understanding measurements use synthetic voices, which are harder to
+  transcribe than a real voice.
 
-## Développement
+## Development
 
 ```bash
 uv run pytest
 uv run ruff check
 ```
 
-La CI GitHub Actions lance les deux sur macOS et Windows à chaque push. Le moteur Claude
-est testé contre un faux `claude`, la voix contre un faux modèle : aucun test ne consomme
-d'abonnement ni n'agit sur l'ordinateur.
+GitHub Actions CI runs both on macOS and Windows on every push. The Claude engine
+is tested against a fake `claude`, the voice against a fake model: no test uses
+a subscription or acts on the computer.
 
-Licence MIT.
+MIT License.

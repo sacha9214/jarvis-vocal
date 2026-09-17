@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from . import assets, custom
 from . import config as config_module
 from .agenda import Agenda
+from .audio.spoken_wake import SpokenWakeWord, is_builtin
+from .audio.spoken_wake import validate as validate_phrase
 from .audio.vad import SileroVad
 from .audio.wakeword import WakeWord
 from .automations import Automations
@@ -59,6 +61,19 @@ def build_wakeword(cfg: Config) -> WakeWord:
     return WakeWord(*assets.wakeword(cfg.wakeword.model), threshold=cfg.wakeword.threshold)
 
 
+def custom_wake_phrase(cfg: Config) -> str | None:
+    """Le mot choisi s'il n'est pas « Hey Jarvis » ; un mot invalide dans config.yaml retombe sur « Hey Jarvis »."""
+    phrase = (cfg.wakeword.phrase or "").strip()
+    if not phrase or is_builtin(phrase):
+        return None
+    try:
+        validate_phrase(phrase)
+    except ValueError as exc:
+        LOG.warning("Mot d'activation « %s » refusé (%s) : « Hey Jarvis » reste actif.", phrase, exc)
+        return None
+    return phrase
+
+
 def build_vad(cfg: Config) -> SileroVad:
     return SileroVad(assets.ensure(assets.SILERO_VAD))
 
@@ -87,7 +102,7 @@ class Components:
     stt: SpeechToText
     llm: Router
     tts: TextToSpeech
-    wakeword: WakeWord
+    wakeword: WakeWord | SpokenWakeWord
     vad: SileroVad
     executor: ToolExecutor
     server: LocalServer | None = None
@@ -164,8 +179,13 @@ def load_all(cfg: Config, system_prompt: str, bus: EventBus | None = None, execu
     with ThreadPoolExecutor(max_workers=3, thread_name_prefix="load") as pool:
         llm_future = pool.submit(timed, f"Moteur {llm.active} ({llm.model})", warm_llm)
         tts_future = pool.submit(timed, "Voix", lambda: build_tts(cfg))
-        ears_future = pool.submit(timed, "Mot d'activation", lambda: (build_wakeword(cfg), build_vad(cfg)))
+        phrase = custom_wake_phrase(cfg)
+        ears = (lambda: (None, build_vad(cfg))) if phrase else (lambda: (build_wakeword(cfg), build_vad(cfg)))
+        ears_future = pool.submit(timed, "Mot d'activation", ears)
         stt = timed("Transcription", warm_stt)
         wakeword, vad = ears_future.result()
+        if phrase:          # son propre détecteur de voix : son état ne doit pas se mêler à celui des commandes
+            wakeword = SpokenWakeWord(phrase, build_vad(cfg), stt.transcribe_hint)
+            LOG.info("  Mot d'activation personnalisé : « %s » (reconnu par transcription)", phrase)
         return Components(stt, llm_future.result(), tts_future.result(), wakeword, vad, executor, server, screen,
                           foreground, browser, review, desktop, editor, memory, automations, agenda)

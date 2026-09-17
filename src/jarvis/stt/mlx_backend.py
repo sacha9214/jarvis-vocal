@@ -5,7 +5,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from . import is_repetitive, prepare_audio, suspicious, vocabulary_prompt
+from . import clean_transcript, is_repetitive, prepare_audio, suspicious, vocabulary_prompt
 
 _MAX_TOKENS = 120   # une phrase parlée tient largement dedans ; une boucle de décodage s'arrête vite
 
@@ -50,6 +50,13 @@ class MlxWhisper:
         finally:
             self._release()
         return "" if is_repetitive(text) else text
+
+    def transcribe_hint(self, audio: np.ndarray, hint: str) -> str:
+        """Phrase courte amorcée par un mot attendu (mot d'activation personnalisé) : un seul essai, pas de repli."""
+        try:
+            return clean_transcript(self._decode(prepare_audio(audio), hint))
+        finally:
+            self._release()
 
     @staticmethod
     def _release() -> None:

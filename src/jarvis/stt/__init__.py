@@ -31,6 +31,8 @@ class SpeechToText(Protocol):
 
     def transcribe(self, audio: np.ndarray) -> str: ...
 
+    def transcribe_hint(self, audio: np.ndarray, hint: str) -> str: ...
+
 
 def clean_transcript(text: str) -> str:
     text = text.strip().strip("…").strip()

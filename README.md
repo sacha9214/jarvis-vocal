@@ -377,6 +377,25 @@ plusieurs formulations) face à cinq minutes de parole française et de bruit.
 - Le pas d'analyse de 80 ms n'est pas réglable : l'affiner à 40 ms fait *chuter* la détection de 73 à
   23 % dans le bruit, parce que les 16 embeddings du classifieur ne couvrent plus la durée du mot.
 
+### Changer de mot (« Hey Friday », « Salut Karl »…)
+
+Réglages → Écoute → **Mot d'activation** (ou `wakeword.phrase` dans `config.yaml`), puis redémarrer.
+Le modèle dédié ne connaît que « Jarvis » ; tout autre mot est reconnu autrement : le détecteur de voix
+repère une phrase courte suivie d'un silence, Whisper la transcrit en sachant quel mot attendre, et elle
+doit être le mot seul, salutation comprise. **C'est moins fiable que « Hey Jarvis »**, mesuré sur voix de synthèse :
+
+| Mesure | Résultat |
+|---|---|
+| Réveils, 40 appels (5 mots, 4 voix) | 52 % (« Hey Friday » 8/8, « Hey Nova » 6/8 ; « Ok Maison » 0/8, inaudible même sans amorce) |
+| Intempestifs, 60 phrases proches (« Salut Carole », « La maison »…) | 2 |
+| Bout en bout (vrai détecteur de voix) : réveils / intempestifs | 6/9 · 0/21 |
+| Coût d'une phrase courte entendue (Mac M3) | ~360 ms de Whisper ; les phrases longues sont ignorées |
+
+- **Marque une courte pause après le mot** : « Hey Friday, ouvre Spotify » d'une traite est une phrase, pas un appel.
+- Préfère un **nom distinctif de deux syllabes** ; au moins 4 lettres, 3 mots au plus (sinon refusé).
+- Remettre « Hey Jarvis » revient au modèle dédié. Jarvis garde son nom dans ses réponses.
+- Non mesuré sur Windows (faster-whisper sur processeur) : chaque phrase courte y coûtera plus cher.
+
 ## Compréhension de la voix
 
 - **Vocabulaire** : Whisper reçoit les noms de tes applications et les commandes courantes. Sur

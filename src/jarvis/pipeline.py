@@ -179,7 +179,8 @@ class Assistant:
         if getattr(self.parts, "agenda", None) is not None:
             self.parts.agenda.announce = self.announce
             self.parts.agenda.start()
-        LOG.info("À l'écoute : dis « Hey Jarvis ». %s", self.parts.llm.describe())
+        LOG.info("À l'écoute : dis « %s ». %s", getattr(wakeword, "hint", "Hey Jarvis").rstrip("."),
+                 self.parts.llm.describe())
         for frame in frames:
             if self._tick(frame, frames):
                 self._state("sleeping")
@@ -509,9 +510,15 @@ class Assistant:
         if now - self._last_near_miss < _NEAR_MISS_EVERY_S:
             return
         self._last_near_miss = now
-        LOG.info("👂 J'ai cru entendre « Hey Jarvis » (score %.2f, seuil %.2f) : baisse la sensibilité dans les "
-                 "réglages si ça se répète.", wakeword.score, wakeword.threshold)
-        self.bus.publish("near_miss", score=round(float(wakeword.score), 2), threshold=wakeword.threshold)
+        if hasattr(wakeword, "phrase"):
+            LOG.info("👂 J'ai cru entendre « %s » dans « %s » (ressemblance %.2f) : marque une courte pause après "
+                     "le mot, ou choisis un nom plus distinctif.",
+                     wakeword.phrase, wakeword.heard.strip(), wakeword.score)
+        else:
+            LOG.info("👂 J'ai cru entendre « Hey Jarvis » (score %.2f, seuil %.2f) : baisse la sensibilité dans les "
+                     "réglages si ça se répète.", wakeword.score, wakeword.threshold)
+        self.bus.publish("near_miss", score=round(float(wakeword.score), 2), threshold=wakeword.threshold,
+                         phrase=getattr(wakeword, "hint", "Hey Jarvis").rstrip("."), custom=hasattr(wakeword, "phrase"))
 
     def _health(self) -> None:
         """Une ligne de journal par conversation : ce qu'il faut pour comprendre un ralentissement ou un plantage."""

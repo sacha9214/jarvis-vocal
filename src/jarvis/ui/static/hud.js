@@ -566,7 +566,9 @@
       case "levels": store.mic = event.mic; store.out = event.out; break;
       case "engine": setEngine(event.active, event.model); break;
       case "near_miss":
-        logEntry("announce", `<span class="k">ÉCOUTE</span>J'ai cru entendre « Hey Jarvis » (score ${event.score}, seuil ${event.threshold}) — baisse la sensibilité dans les réglages si ça se répète`);
+        logEntry("announce", event.custom
+          ? `<span class="k">ÉCOUTE</span>J'ai cru entendre « ${esc(event.phrase)} » (ressemblance ${event.score}) — marque une courte pause après le mot`
+          : `<span class="k">ÉCOUTE</span>J'ai cru entendre « Hey Jarvis » (score ${event.score}, seuil ${event.threshold}) — baisse la sensibilité dans les réglages si ça se répète`);
         break;
       case "browsers": {
         const names = event.names || [];

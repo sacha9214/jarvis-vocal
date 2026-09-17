@@ -13,6 +13,8 @@ from . import hardware, paths
 
 @dataclass
 class WakeWordConfig:
+    # Tant que le mot contient « Jarvis » seul, le modèle dédié ; sinon reconnaissance par transcription.
+    phrase: str = "Hey Jarvis"
     model: str = "hey_jarvis"
     # 0,25 : mesuré sur 25 enregistrements de « Hey Jarvis » et 5 minutes de parole et de bruit. Contre 0,5,
     # la détection passe de 48 à 83 % dans le bruit et de 64 à 80 % quand Jarvis parle, sans un seul

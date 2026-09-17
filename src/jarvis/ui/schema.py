@@ -52,6 +52,11 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
                    "le coupe comme « Hey Jarvis ». Ex. ctrl+alt+j. Vide pour aucun raccourci."),
     ]),
     ("listening", "Écoute", "Réactivité et sensibilité du micro.", [
+        Field("wakeword.phrase", "Mot d'activation", "text", live=False,
+              help="« Hey Jarvis » utilise un modèle dédié, le plus fiable. Tout autre mot (« Hey Friday ») est "
+                   "reconnu en transcrivant les phrases courtes : moins fiable (mesuré : une fois sur deux, deux "
+                   "réveils intempestifs sur soixante phrases proches). Marque une courte pause après le mot, "
+                   "et préfère un nom distinctif de deux syllabes."),
         Field("wakeword.threshold", "Sensibilité de « Hey Jarvis »", "slider", min=0.15, max=0.9, step=0.05,
               help="Plus bas : il t'entend plus facilement, même dans le bruit ou pendant qu'il parle. "
                    "0,25 par défaut, mesuré sans aucun réveil intempestif sur cinq minutes de parole et de bruit."),
@@ -180,3 +185,9 @@ def validate(flat: dict[str, Any], tool_names: set[str]) -> None:
             raise ValueError(f"{field.label} : choix inconnu")
         elif field.type == "text" and (not isinstance(value, str) or len(value) > 200):
             raise ValueError(f"{field.label} : texte de 200 caractères maximum")
+        if key == "wakeword.phrase":
+            from ..audio.spoken_wake import validate as validate_phrase
+            try:
+                validate_phrase(value)
+            except ValueError as exc:
+                raise ValueError(f"{field.label} : {exc}") from None

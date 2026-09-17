@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from ..config import SttConfig
-from . import is_repetitive, prepare_audio, suspicious, vocabulary_prompt
+from . import clean_transcript, is_repetitive, prepare_audio, suspicious, vocabulary_prompt
 
 LOG = logging.getLogger("jarvis.stt")
 _MAX_TOKENS = 120
@@ -64,6 +64,10 @@ class FasterWhisper:
         if self.prompt and suspicious(text, self.prompt):
             text = self._decode(audio, None)    # second essai sans amorce
         return "" if is_repetitive(text) else text
+
+    def transcribe_hint(self, audio: np.ndarray, hint: str) -> str:
+        """Phrase courte amorcée par un mot attendu (mot d'activation personnalisé) : un seul essai, pas de repli."""
+        return clean_transcript(self._decode(prepare_audio(audio), hint))
 
 
 def load(cfg: SttConfig) -> FasterWhisper:

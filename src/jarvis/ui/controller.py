@@ -88,7 +88,8 @@ class Controller:
             return
         llm = parts.llm
         if key == "wakeword.threshold":
-            parts.wakeword.threshold = float(value)
+            if not hasattr(parts.wakeword, "phrase"):          # le mot personnalisé garde son propre seuil
+                parts.wakeword.threshold = float(value)
         elif key == "llm.backend":
             llm.switch(CLAUDE if value == "claude" else LOCAL)
             self._publish_engine()

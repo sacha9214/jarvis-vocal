@@ -7,6 +7,14 @@ browser**, **sees what you're doing on screen** and
 shows up in a **holographic interface** where you adjust everything live. It thinks locally
 or through **your Claude subscription**.
 
+<p align="center">
+  <img src="docs/demo.gif" alt="The Jarvis interface: two spoken commands, the tools they fire, and the measured latency" width="860">
+</p>
+
+<p align="center"><em>The real interface, running in preview mode (<code>jarvis hud</code>) on scripted
+events: two spoken commands, the tools they fire, the confirmation Jarvis asks for before
+closing an app, and the measured latency of each stage.</em></p>
+
 > Jarvis understands and speaks French, so the example commands below are shown in French,
 > exactly as you would say them.
 

@@ -14,7 +14,7 @@ from .. import config as config_module
 from ..config import Config
 from ..events import EventBus
 from ..llm.router import CLAUDE, LOCAL
-from ..system import status
+from ..system import autostart, status
 from ..tools import REGISTRY
 from ..tools import builtin as _builtin  # noqa: F401 - enregistre les outils listés dans l'interface
 from ..tools.builtin import TIMERS
@@ -47,6 +47,10 @@ class Controller:
 
     def state(self) -> dict[str, Any]:
         engine = {"active": self.parts.llm.active, "model": self.parts.llm.model} if self.parts else None
+        # La case doit dire ce qui est RÉELLEMENT installé : le LaunchAgent ou l'entrée de
+        # démarrage peut avoir été retiré hors de Jarvis, et un réglage qui ment est pire
+        # qu'un réglage absent.
+        self.cfg.ui.autostart = autostart.is_enabled()
         return {
             "version": __version__,
             "config": dataclasses.asdict(self.cfg),
@@ -67,6 +71,8 @@ class Controller:
             raise ValueError("Aucun réglage à enregistrer.")
         flat = schema.flatten(updates)
         schema.validate(flat, set(REGISTRY))
+        if "ui.autostart" in flat:
+            self._set_autostart(bool(flat["ui.autostart"]))
         with self._lock:
             config_module._apply(copy.deepcopy(self.cfg), updates)     # clés et sections valides ?
             path = config_module.update_file(updates)
@@ -81,6 +87,21 @@ class Controller:
         LOG.info("Réglages enregistrés dans %s : %s", path, ", ".join(flat))
         self.bus.publish("config", keys=list(flat))
         return {"state": self.state(), "applied": applied, "restart": restart}
+
+    def _set_autostart(self, wanted: bool) -> None:
+        """Installe ou retire le démarrage automatique AVANT d'enregistrer le réglage.
+
+        L'ordre compte : si le système refuse, rien n'est écrit dans config.yaml et la case
+        ne prétend pas qu'un démarrage est installé alors qu'il ne l'est pas. C'est le seul
+        réglage de l'interface qui touche à l'ordinateur en dehors de Jarvis, et il ne part
+        que d'un clic de l'utilisateur sur cette case.
+        """
+        if wanted == autostart.is_enabled():
+            return
+        try:
+            LOG.info("%s", autostart.enable() if wanted else autostart.disable())
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(str(exc)) from None
 
     def _apply_live(self, key: str, value: Any) -> None:
         parts = self.parts

@@ -136,6 +136,9 @@ class UiConfig:
     window: str = "app"            # app (fenêtre Jarvis) | browser | none
     port: int = 0                  # 0 = port libre choisi au démarrage
     hotkey: str = "ctrl+alt+j"     # réveille Jarvis sans parler, depuis n'importe où ; vide = aucun raccourci
+    # Démarrage à l'ouverture de session. FAUX par défaut, et rien n'est installé tant que l'utilisateur ne
+    # coche pas lui-même : c'est lui qui décide qu'un programme qui écoute son micro se lance tout seul.
+    autostart: bool = False
 
 
 @dataclass

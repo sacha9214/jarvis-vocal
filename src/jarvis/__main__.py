@@ -107,6 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     bench.add_argument("--claude-model", help="modèle Claude, ex. haiku ou sonnet")
     bench.add_argument("--stt-model", help="ex. mlx-community/whisper-large-v3-turbo")
     bench.add_argument("--repeats", type=int, default=3)
+    auto = sub.add_parser("autostart", help="démarrage de Jarvis à l'ouverture de session (aussi dans les réglages)")
+    auto.add_argument("action", nargs="?", default="status", choices=["on", "off", "status"])
     sub.add_parser("doctor", help="vérifie l'installation")
     sub.add_parser("setup", help="télécharge les modèles")
     sub.add_parser("devices", help="liste les périphériques audio")
@@ -132,6 +134,10 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.command == "hud":
             return _hud_demo(cfg)
+        if args.command == "autostart":
+            # Le système fait foi : la case des réglages lit l'état réel, elle ne relit pas config.yaml.
+            from .system.autostart import run as autostart_run
+            return autostart_run(args.action)
         if args.command == "extension":
             from .browser.install import run as install_extension
             return install_extension(cfg.browser.port)

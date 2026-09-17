@@ -53,6 +53,11 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
               help="Nombre d'échanges récents que Jarvis garde en tête."),
         Field("ui.window", "Affichage de l'interface", "select", live=False,
               options=(("app", "Fenêtre Jarvis"), ("browser", "Navigateur"), ("none", "Aucune"))),
+        Field("ui.autostart", "Démarrer Jarvis à l'ouverture de session", "toggle",
+              help="Rien n'est installé tant que tu ne coches pas toi-même. Sur Mac, un fichier dans "
+                   "~/Library/LaunchAgents ; sur Windows, une entrée dans tes programmes de démarrage. Aucun "
+                   "droit administrateur, et décocher la retire. Jarvis écoute ton micro : c'est à toi de "
+                   "décider qu'il se lance tout seul."),
         Field("ui.hotkey", "Raccourci pour réveiller Jarvis", "text", live=False,
               help="Réveille Jarvis sans parler, depuis n'importe quelle application ; pendant qu'il parle, "
                    "le coupe comme « Hey Jarvis ». Ex. ctrl+alt+j. Vide pour aucun raccourci."),

@@ -59,9 +59,16 @@ def mac_plist(executable: str | None = None) -> bytes:
 
 # -- Windows
 
-def _windows_key(write: bool):
+def _windows_key(write: bool, create: bool = False):
+    """La clé Run n'existe pas forcément : sur un Windows où aucun programme n'a jamais été mis au
+    démarrage, elle est absente et `OpenKey` lève WinError 2 (mesuré sur un runner de CI vierge).
+    Pour écrire on la crée donc au besoin ; pour lire, son absence veut simplement dire « rien
+    au démarrage » et l'appelant traite l'erreur.
+    """
     import winreg
     access = winreg.KEY_SET_VALUE | winreg.KEY_QUERY_VALUE if write else winreg.KEY_QUERY_VALUE
+    if create:
+        return winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, access)
     return winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, access)
 
 
@@ -80,7 +87,7 @@ def is_enabled(home: Path | None = None, value_name: str = VALUE_NAME) -> bool:
             with _windows_key(False) as key:
                 winreg.QueryValueEx(key, value_name)
             return True
-        except FileNotFoundError:
+        except OSError:            # clé ou valeur absente : rien au démarrage
             return False
     return False
 
@@ -94,7 +101,7 @@ def enable(home: Path | None = None, value_name: str = VALUE_NAME, executable: s
         return f"Jarvis démarrera à l'ouverture de ta session (fichier {path})."
     if IS_WINDOWS:
         import winreg
-        with _windows_key(True) as key:
+        with _windows_key(True, create=True) as key:
             winreg.SetValueEx(key, value_name, 0, winreg.REG_SZ, windows_command_line(executable))
         return "Jarvis démarrera à l'ouverture de ta session Windows."
     raise unsupported("Le démarrage automatique")

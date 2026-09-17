@@ -72,6 +72,87 @@ def test_windows_registry_value_is_written_then_removed():
             pass
 
 
+# -- registre Windows simulé : ce test tourne sur toutes les plateformes
+#
+# Il fixe la régression du 2026-09-17, trouvée par la CI Windows : sur une machine où aucun
+# programme n'a jamais été mis au démarrage, la clé Run n'existe pas et `OpenKey` lève
+# WinError 2. Activer le démarrage doit la créer, pas échouer.
+
+class _FakeKey:
+    def __init__(self, reg):
+        self.reg = reg
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_):
+        return False
+
+
+class _FakeRegistry:
+    """Le minimum de `winreg` qu'utilise autostart, avec une clé Run absente au départ."""
+    HKEY_CURRENT_USER = 0
+    KEY_SET_VALUE, KEY_QUERY_VALUE, REG_SZ = 2, 1, 1
+
+    def __init__(self):
+        self.key_exists = False
+        self.values: dict[str, str] = {}
+
+    def OpenKey(self, _root, _path, _res, _access):
+        if not self.key_exists:
+            raise FileNotFoundError(2, "The system cannot find the file specified")
+        return _FakeKey(self)
+
+    def CreateKeyEx(self, _root, _path, _res, _access):
+        self.key_exists = True
+        return _FakeKey(self)
+
+    def SetValueEx(self, _key, name, _res, _type, value):
+        self.values[name] = value
+
+    def QueryValueEx(self, _key, name):
+        if name not in self.values:
+            raise FileNotFoundError(2, "value not found")
+        return self.values[name], self.REG_SZ
+
+    def DeleteValue(self, _key, name):
+        if name not in self.values:
+            raise FileNotFoundError(2, "value not found")
+        del self.values[name]
+
+
+@pytest.fixture
+def fake_windows(monkeypatch):
+    registry = _FakeRegistry()
+    monkeypatch.setitem(sys.modules, "winreg", registry)
+    monkeypatch.setattr(autostart, "IS_MAC", False)
+    monkeypatch.setattr(autostart, "IS_WINDOWS", True)
+    return registry
+
+
+def test_enabling_creates_the_run_key_when_it_does_not_exist(fake_windows):
+    assert fake_windows.key_exists is False
+    assert autostart.is_enabled() is False          # absence de clé = rien au démarrage, pas une erreur
+
+    autostart.enable()
+    assert fake_windows.key_exists is True
+    assert "jarvis" in fake_windows.values[autostart.VALUE_NAME]
+    assert autostart.is_enabled() is True
+
+
+def test_disabling_without_the_run_key_says_so(fake_windows):
+    assert "pas activé" in autostart.disable()
+    assert fake_windows.key_exists is False         # lire ne crée rien
+
+
+def test_disabling_removes_only_our_value(fake_windows):
+    autostart.enable()
+    fake_windows.values["AutreProgramme"] = "autre.exe"
+    autostart.disable()
+    assert autostart.VALUE_NAME not in fake_windows.values
+    assert fake_windows.values == {"AutreProgramme": "autre.exe"}
+
+
 # -- le chemin qui compte : le réglage de l'interface
 
 def _controller(tmp_path, monkeypatch):

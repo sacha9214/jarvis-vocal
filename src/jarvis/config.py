@@ -126,14 +126,17 @@ class TtsConfig:
 
 @dataclass
 class AudioConfig:
-    input_device: int | str | None = None
-    output_device: int | str | None = None
+    input_device: int | str | None = None     # nom du micro (réglages) ; vide = celui du système
+    output_device: int | str | None = None    # nom de la sortie (réglages) ; vide = celle du système
     follow_up_s: float = 4.0       # écoute une relance sans « Hey Jarvis » (0 = désactivé)
 
 
 @dataclass
 class UiConfig:
     window: str = "app"            # app (fenêtre Jarvis) | browser | none
+    screen: str = "auto"           # écran de la fenêtre au démarrage : auto (principal) | 1, 2, 3…
+    display: str = "fenetre"       # fenetre | agrandie | plein_ecran
+    show_logs: bool = False        # ouvre un terminal qui affiche le journal en direct
     port: int = 0                  # 0 = port libre choisi au démarrage
     hotkey: str = "ctrl+alt+j"     # réveille Jarvis sans parler, depuis n'importe où ; vide = aucun raccourci
     # Démarrage à l'ouverture de session. FAUX par défaut, et rien n'est installé tant que l'utilisateur ne

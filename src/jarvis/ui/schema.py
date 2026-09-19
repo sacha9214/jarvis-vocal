@@ -17,15 +17,33 @@ class Field:
     step: float | None = None
     unit: str = ""
     options: tuple[tuple[str, str], ...] = ()
+    choices: str = ""             # options lues au moment de l'affichage : « outputs », « inputs », « screens »
 
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {"key": self.key, "label": self.label, "type": self.type, "live": self.live,
                                 "help": self.help}
         if self.type == "slider":
             data.update(min=self.min, max=self.max, step=self.step, unit=self.unit)
-        if self.options:
-            data["options"] = [list(option) for option in self.options]
+        options = self.current_options()
+        if options:
+            data["options"] = [list(option) for option in options]
         return data
+
+    def current_options(self) -> tuple[tuple[str, str], ...]:
+        if not self.choices:
+            return self.options
+        return self.options + tuple(dynamic_choices(self.choices))
+
+
+def dynamic_choices(kind: str) -> list[tuple[str, str]]:
+    """Ce qui est branché maintenant : un casque ou un écran ajouté apparaît sans redémarrer."""
+    if kind in ("inputs", "outputs"):
+        from ..audio.devices import names
+        return [(name, name) for name in names("input" if kind == "inputs" else "output")]
+    if kind == "screens":
+        from ..ui.window import SCREENS
+        return list(SCREENS)
+    return []
 
 
 VOICE_OPTIONS = (
@@ -53,6 +71,15 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
               help="Nombre d'échanges récents que Jarvis garde en tête."),
         Field("ui.window", "Affichage de l'interface", "select", live=False,
               options=(("app", "Fenêtre Jarvis"), ("browser", "Navigateur"), ("none", "Aucune"))),
+        Field("ui.screen", "Écran de la fenêtre", "select", live=False, choices="screens",
+              help="Sur quel écran la fenêtre Jarvis s'ouvre au démarrage. Un écran débranché depuis retombe "
+                   "sur le principal.", options=(("auto", "Écran principal"),)),
+        Field("ui.display", "Taille de la fenêtre", "select", live=False,
+              help="Plein écran : Échap ou le bouton vert (Mac) / F11 (Windows) pour en sortir.",
+              options=(("fenetre", "Fenêtrée"), ("agrandie", "Agrandie"), ("plein_ecran", "Plein écran"))),
+        Field("ui.show_logs", "Afficher le journal dans un terminal", "toggle",
+              help="Ouvre une fenêtre de terminal qui montre en direct ce que fait Jarvis (logs/jarvis.log). "
+                   "Pratique avec l'exécutable Windows, lancé sans console. La fermer n'arrête pas Jarvis."),
         Field("ui.autostart", "Démarrer Jarvis à l'ouverture de session", "toggle",
               help="Rien n'est installé tant que tu ne coches pas toi-même. Sur Mac, un fichier dans "
                    "~/Library/LaunchAgents ; sur Windows, une entrée dans tes programmes de démarrage. Aucun "
@@ -63,6 +90,11 @@ SECTIONS: list[tuple[str, str, str, list[Field]]] = [
                    "le coupe comme « Hey Jarvis ». Ex. ctrl+alt+j. Vide pour aucun raccourci."),
     ]),
     ("listening", "Écoute", "Réactivité et sensibilité du micro.", [
+        Field("audio.output_device", "Sortie audio", "select", choices="outputs",
+              help="Où Jarvis parle : haut-parleurs, casque, écran… Change sans redémarrer.",
+              options=(("", "Celle du système"),)),
+        Field("audio.input_device", "Micro", "select", choices="inputs",
+              help="Change sans redémarrer.", options=(("", "Celui du système"),)),
         Field("wakeword.phrase", "Mot d'activation", "text", live=False,
               help="« Hey Jarvis » utilise un modèle dédié, le plus fiable. Tout autre mot (« Hey Friday ») est "
                    "reconnu en transcrivant les phrases courtes : moins fiable (mesuré : une fois sur deux, deux "
@@ -192,7 +224,7 @@ def validate(flat: dict[str, Any], tool_names: set[str]) -> None:
                 raise ValueError(f"{field.label} : entre {field.min:g} et {field.max:g}")
         elif field.type == "toggle" and not isinstance(value, bool):
             raise ValueError(f"{field.label} : vrai ou faux attendu")
-        elif field.type == "select" and value not in {v for v, _ in field.options}:
+        elif field.type == "select" and value not in {v for v, _ in field.current_options()}:
             raise ValueError(f"{field.label} : choix inconnu")
         elif field.type == "text" and (not isinstance(value, str) or len(value) > 200):
             raise ValueError(f"{field.label} : texte de 200 caractères maximum")

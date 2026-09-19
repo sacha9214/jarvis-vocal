@@ -12,6 +12,7 @@ import sounddevice as sd
 import soxr
 
 from . import SAMPLE_RATE
+from .devices import resolve
 from .vad import CHUNK
 
 LOG = logging.getLogger("jarvis.audio")
@@ -25,19 +26,35 @@ class Microphone:
     lourd se fait côté consommateur pour ne jamais perdre d'audio."""
 
     def __init__(self, device: int | str | None = None, frame: int = CHUNK):
-        info = sd.query_devices(device, "input")
-        self._device = device
-        self.name = info["name"]
         self.on_lost: Callable[[], None] | None = None   # prévenir l'interface et le journal
-        self.rate = int(info["default_samplerate"])
         self._frame = frame
         self._queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=500)
+        self._select(device)
+        self._stream = self._open()
+        self.dropped = 0
+
+    def _select(self, device: int | str | None) -> None:
+        self._device = resolve(device, "input")
+        info = sd.query_devices(self._device, "input")
+        self.name = info["name"]
+        self.rate = int(info["default_samplerate"])
         self._resampler = (None if self.rate == SAMPLE_RATE
                            else soxr.ResampleStream(self.rate, SAMPLE_RATE, 1, dtype="float32"))
-        self._stream = sd.InputStream(device=device, channels=1, samplerate=self.rate, dtype="float32",
-                                      blocksize=int(self.rate * 0.02), latency="low",
-                                      callback=self._callback)
-        self.dropped = 0
+
+    def _open(self) -> sd.InputStream:
+        return sd.InputStream(device=self._device, channels=1, samplerate=self.rate, dtype="float32",
+                              blocksize=int(self.rate * 0.02), latency="low", callback=self._callback)
+
+    def set_device(self, device: int | str | None) -> str:
+        """Change de micro sans redémarrer ; renvoie le nom du micro ouvert."""
+        previous = (self._device, self.name, self.rate, self._resampler)
+        self._select(device)
+        if not self._reopen():
+            self._device, self.name, self.rate, self._resampler = previous
+            self._reopen()
+            raise RuntimeError("ce micro ne s'ouvre pas, l'ancien est gardé")
+        LOG.info("Micro : %s (%d Hz → 16 kHz)", self.name, self.rate)
+        return self.name
 
     def _callback(self, indata, frames, time_info, status) -> None:
         try:
@@ -55,8 +72,7 @@ class Microphone:
         # Surtout ne pas réinitialiser PortAudio (sd._terminate) : mesuré, cela invalide aussi le flux de
         # sortie, et Jarvis perdrait la voix en essayant de retrouver l'oreille.
         try:
-            self._stream = sd.InputStream(device=self._device, channels=1, samplerate=self.rate, dtype="float32",
-                                          blocksize=int(self.rate * 0.02), latency="low", callback=self._callback)
+            self._stream = self._open()
             self._stream.start()
         except Exception as exc:  # noqa: BLE001 - toujours pas de micro : on réessaiera
             LOG.debug("Micro toujours indisponible : %s", exc)
@@ -111,8 +127,29 @@ class Player:
         self._lock = threading.Lock()
         self._idle = threading.Event()
         self._idle.set()
-        self._stream = sd.OutputStream(device=device, channels=1, samplerate=sample_rate,
-                                       dtype="float32", latency="low", callback=self._callback)
+        self._device = resolve(device, "output")
+        self.name = sd.query_devices(self._device, "output")["name"]
+        self._stream = self._open()
+
+    def _open(self) -> sd.OutputStream:
+        return sd.OutputStream(device=self._device, channels=1, samplerate=self.rate,
+                               dtype="float32", latency="low", callback=self._callback)
+
+    def set_device(self, device: int | str | None) -> str:
+        """Change de sortie sans redémarrer (la phrase en cours reprend sur la nouvelle) ; renvoie son nom."""
+        target = resolve(device, "output")
+        stream = sd.OutputStream(device=target, channels=1, samplerate=self.rate,
+                                 dtype="float32", latency="low", callback=self._callback)
+        stream.start()                     # la nouvelle d'abord : si elle refuse, l'ancienne continue
+        old, self._stream, self._device = self._stream, stream, target
+        self.name = sd.query_devices(target, "output")["name"]
+        try:
+            old.stop()
+            old.close()
+        except Exception:  # noqa: BLE001 - l'ancienne sortie a pu disparaître (casque débranché)
+            pass
+        LOG.info("Sortie audio : %s", self.name)
+        return self.name
 
     def __enter__(self) -> Player:
         self._stream.start()

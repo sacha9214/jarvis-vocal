@@ -25,10 +25,14 @@ def _run(cfg: config_module.Config) -> int:
     from .pipeline import Assistant
     from .server import start_server
     from .ui.controller import Controller
-    from .ui.window import open_window
+    from .ui.window import detect_screens, open_window
 
+    if cfg.ui.window == "app":
+        detect_screens()                        # fil principal (AppKit) : liste lue ensuite par les réglages
     bus = EventBus()
     controller = Controller(cfg, bus)
+    if cfg.ui.show_logs:
+        controller.log_terminal.show()
     executor = build_executor(cfg)
     server = start_server(executor, cfg.ui.port, controller)
     failure: list[BaseException] = []
@@ -62,7 +66,7 @@ def _run(cfg: config_module.Config) -> int:
         worker = threading.Thread(target=voice_loop, name="voix", daemon=True)
         worker.start()
         LOG.info("Interface : %s", server.url)
-        if cfg.ui.window == "app" and open_window(server.ui_url):
+        if cfg.ui.window == "app" and open_window(server.ui_url, cfg.ui.screen, cfg.ui.display):
             os._exit(1 if failure else 0)       # fenêtre fermée : on coupe micro et modèles sans attendre
         webbrowser.open(server.ui_url)
         while worker.is_alive():

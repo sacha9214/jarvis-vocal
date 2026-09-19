@@ -128,10 +128,12 @@ def doctor(cfg: Config) -> int:
              "disponible" if found else "paquet uiautomation absent : `uv sync`")
 
     import sounddevice as sd
+
+    from .audio.devices import resolve
     for kind, device, label in (("input", cfg.audio.input_device, "Micro"),
                                 ("output", cfg.audio.output_device, "Sortie audio")):
         try:
-            line("ok", label, sd.query_devices(device, kind)["name"])
+            line("ok", label, sd.query_devices(resolve(device, kind), kind)["name"])
         except Exception as exc:  # aucun périphérique, index invalide…
             line("fail", label, str(exc))
 

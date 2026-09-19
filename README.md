@@ -359,6 +359,16 @@ to Claude; the image itself never leaves the machine and is never written to dis
   Each setting says whether it applies **live** or on **restart**; saving
   writes `config.yaml` and a button restarts Jarvis if needed.
 - Shortcuts: `Space` to talk, `S` to stop, `Enter` / `Esc` to confirm or decline.
+- **Audio output and microphone**: pick them by name from what is plugged in right now (speakers,
+  headset, monitor…). Applied live: Jarvis says « Je parle maintenant sur… » on the new output. Stored by
+  name, not by PortAudio index (indexes shift whenever a headset is plugged in); on Windows each device is
+  listed once, from the default audio API, instead of once per MME / DirectSound / WASAPI / WDM-KS. An
+  unplugged device falls back to the system default instead of blocking startup.
+- **Screen and window size at startup**: which screen the window opens on, and windowed / maximized /
+  full screen. A screen unplugged since falls back to the main one.
+- **Show the log in a terminal**: opens a terminal window following `logs/jarvis.log` live (PowerShell
+  `Get-Content -Wait` on Windows, Terminal + `tail -F` on macOS). Handy with the Windows executable, which
+  runs without a console. Closing it does not stop Jarvis; unticking the setting closes it.
 
 It opens in a native window (WebKit on macOS, WebView2 on Windows). The server
 only listens on your machine (127.0.0.1), rejects other host names and requires the session's random

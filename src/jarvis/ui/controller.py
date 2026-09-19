@@ -19,6 +19,7 @@ from ..tools import REGISTRY
 from ..tools import builtin as _builtin  # noqa: F401 - enregistre les outils listés dans l'interface
 from ..tools.builtin import TIMERS
 from . import schema
+from .log_terminal import LogTerminal
 
 if TYPE_CHECKING:
     from ..app import Components
@@ -39,6 +40,7 @@ class Controller:
         self.parts: Components | None = None
         self.assistant: Assistant | None = None
         self._lock = threading.Lock()
+        self.log_terminal = LogTerminal()
 
     def attach(self, parts: Components, assistant: Assistant) -> None:
         self.parts, self.assistant = parts, assistant
@@ -104,6 +106,17 @@ class Controller:
             raise ValueError(str(exc)) from None
 
     def _apply_live(self, key: str, value: Any) -> None:
+        if key == "ui.show_logs":            # n'attend pas les modèles : utile justement pendant le chargement
+            self.log_terminal.show() if value else self.log_terminal.hide()
+            return
+        if key in ("audio.output_device", "audio.input_device"):
+            if self.assistant is not None:
+                if key == "audio.output_device":
+                    name = self.assistant.player.set_device(value or None)
+                    self.assistant.announce(f"Je parle maintenant sur {name}.")   # on l'entend là où il faut
+                else:
+                    self.assistant.mic.set_device(value or None)
+            return
         parts = self.parts
         if parts is None:
             return

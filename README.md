@@ -467,6 +467,23 @@ listening models. The listening models and the Piper voice are verified by SHA-2
 **Ollama must be running** for local mode and screen analysis (Ollama app, or
 `brew services start ollama` on a Mac). Claude mode, the voice and the interface work without it.
 
+### Standalone executable (no Python needed)
+
+```bash
+uv sync --group build
+uv run jarvis build
+```
+
+Produces `dist/Jarvis/Jarvis.exe` on Windows (`dist/Jarvis.app` on macOS) and a zip next to it to share.
+It is a PyInstaller **folder**, not a single file: a one-file exe would unpack ~1–2 GB to a temp folder
+on every launch. It runs without a console window; tick **Show the log in a terminal** in Settings to
+follow what it does. Every push to `main` also builds the Windows zip on GitHub Actions (workflow
+**Build**, artifact `Jarvis-windows`) after running a self-test inside the executable: imports, Piper
+voice, wake word.
+
+Not included: the models (downloaded on first launch, ~6 GB), Ollama (install it separately for
+local mode) and Claude Code (the official `claude` binary, which you sign in to yourself).
+
 ## LLM on another machine on the network
 
 The local model can run on another computer (a PC with a good graphics card, for
@@ -557,6 +574,7 @@ commands:
 | `uv run jarvis doctor` | checks Ollama, Claude Code, the voices, the microphone and audio output |
 | `uv run jarvis bench` | measures each stage's latency (`--backend claude` for Claude) |
 | `uv run jarvis devices` | lists audio devices |
+| `uv run jarvis build` | builds the standalone executable (needs `uv sync --group build`) |
 
 | By voice | Effect |
 |---|---|

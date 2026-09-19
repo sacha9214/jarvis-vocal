@@ -53,6 +53,8 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.16.7",
 ]
+# `uv sync --group build` puis `uv run jarvis build` : l'exécutable autonome.
+build = ["pyinstaller>=6.16"]
 
 [tool.ruff]
 line-length = 120

@@ -1,0 +1,36 @@
+name: Build
+
+# Builds the standalone Windows executable, runs its self-test inside the bundle, and publishes the zip
+# as a downloadable artifact of the run.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      JARVIS_HOME: ${{ github.workspace }}/.jarvis-build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked --group build
+      - run: uv run jarvis build
+      - name: Self-test inside the executable (imports, Piper voice, wake word)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath dist\Jarvis\Jarvis.exe -ArgumentList "selftest","--deep" -Wait -PassThru
+          Get-Content "$env:JARVIS_HOME\logs\jarvis.log" -Tail 40
+          if ($p.ExitCode -ne 0) { throw "self-test failed ($($p.ExitCode))" }
+      - name: Size
+        shell: pwsh
+        run: |
+          "{0:N0} MB folder" -f ((Get-ChildItem dist\Jarvis -Recurse | Measure-Object Length -Sum).Sum / 1MB)
+          "{0:N0} MB zip" -f ((Get-Item dist\Jarvis-win32.zip).Length / 1MB)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Jarvis-windows
+          path: dist/Jarvis-win32.zip
+          retention-days: 30

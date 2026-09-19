@@ -7,3 +7,4 @@ dist/
 .scratch/
 .jarvis-ci/
 config.yaml
+build/

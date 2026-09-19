@@ -21,13 +21,22 @@ RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 VALUE_NAME = "Jarvis"
 
 
+def frozen() -> bool:
+    """Lancé depuis l'exécutable construit par `jarvis build`, pas depuis le dépôt."""
+    return bool(getattr(sys, "frozen", False))
+
+
 def project_dir() -> Path:
-    """Le dossier du dépôt : config.yaml local éventuel et `uv run` s'y retrouvent."""
+    """Le dossier du dépôt (config.yaml local éventuel et `uv run` s'y retrouvent), ou celui de l'exécutable."""
+    if frozen():
+        return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parents[3]
 
 
 def launch_command(executable: str | None = None) -> list[str]:
-    """Commande qui démarre Jarvis sans terminal : l'interpréteur de l'environnement du projet."""
+    """Commande qui démarre Jarvis sans terminal : l'exécutable lui-même, ou l'interpréteur du projet."""
+    if frozen() and executable is None:
+        return [sys.executable]              # Jarvis.exe, construit sans console
     python = Path(executable or sys.executable)
     if IS_WINDOWS:
         windowless = python.with_name("pythonw.exe")

@@ -116,11 +116,20 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("doctor", help="vérifie l'installation")
     sub.add_parser("setup", help="télécharge les modèles")
     sub.add_parser("devices", help="liste les périphériques audio")
+    sub.add_parser("build", help="construit l'exécutable autonome (Jarvis.exe sous Windows, Jarvis.app sous macOS)")
+    selftest = sub.add_parser("selftest", help=argparse.SUPPRESS)
+    selftest.add_argument("--deep", action="store_true")
     args = parser.parse_args(argv)
 
     from . import logs
     log_path = logs.setup(args.verbose)
 
+    if args.command == "build":                  # ne charge ni la config ni les modèles
+        from .build import run as build
+        return build()
+    if args.command == "selftest":
+        from .build import selftest as run_selftest
+        return run_selftest(args.deep)
     try:
         cfg = config_module.load(Path(args.config) if args.config else None)
         if getattr(args, "backend", None):

@@ -35,3 +35,16 @@ def test_autostart_launches_the_executable_itself_once_built(monkeypatch, tmp_pa
     monkeypatch.setattr(sys, "executable", str(exe))
     assert autostart.launch_command() == [str(exe)]
     assert autostart.project_dir() == Path(exe).resolve().parent
+
+
+def test_the_console_accepts_emoji_even_in_cp1252(monkeypatch):
+    import io
+
+    from jarvis import __main__ as entry
+    raw = io.BytesIO()
+    console = io.TextIOWrapper(raw, encoding="cp1252")
+    monkeypatch.setattr(sys, "stdout", console)
+    entry._utf8_console()
+    print("✅ prêt, cœur")
+    console.flush()
+    assert raw.getvalue().decode("utf-8").startswith("✅ prêt, cœur")

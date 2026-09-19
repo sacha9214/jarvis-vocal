@@ -93,7 +93,19 @@ def _hud_demo(cfg: config_module.Config) -> int:
         time.sleep(1)
 
 
+def _utf8_console() -> None:
+    """Console Windows en cp1252 : afficher « ✅ » ou « œ » y levait UnicodeEncodeError et tuait la commande."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure and (getattr(stream, "encoding", "") or "").lower().replace("-", "") != "utf8":
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _utf8_console()
     parser = argparse.ArgumentParser(prog="jarvis", description="Assistant vocal local, rapide, Windows et macOS.")
     parser.add_argument("--config", help="chemin d'un config.yaml")
     parser.add_argument("-v", "--verbose", action="store_true", help="journal détaillé")

@@ -469,6 +469,9 @@ listening models. The listening models and the Piper voice are verified by SHA-2
 
 ### Standalone executable (no Python needed)
 
+The executable carries the Jarvis icon (`packaging/jarvis.ico` on Windows, `jarvis.icns` on macOS) and the
+interface uses it as its favicon.
+
 ```bash
 uv sync --group build
 uv run jarvis build

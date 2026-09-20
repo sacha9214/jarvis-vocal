@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 LOG = logging.getLogger("jarvis.ui")
 DISPLAYS = ("fenetre", "agrandie", "plein_ecran")
+# Icône de la fenêtre et du Dock : embarquée dans le paquet, donc présente aussi dans l'exécutable.
+ICON = Path(__file__).parent / "static" / "logo.png"
 # Écrans détectés au démarrage, sur le fil principal (AppKit l'exige) : les réglages les lisent ensuite.
 SCREENS: list[tuple[str, str]] = []
 
@@ -46,7 +49,7 @@ def open_window(url: str, screen: str = "auto", display: str = "fenetre") -> boo
         options = window_options(screen, display, list(webview.screens))
         webview.create_window("Jarvis", url, width=1380, height=880, min_size=(960, 640),
                               background_color="#02060b", text_select=False, **options)
-        webview.start()
+        webview.start(icon=str(ICON) if ICON.exists() else None)
         return True
     except Exception as exc:  # noqa: BLE001 - WebView2 absent, pas d'écran…
         LOG.warning("Fenêtre indisponible (%s) : ouverture dans le navigateur.", exc)

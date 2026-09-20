@@ -24,6 +24,19 @@ jobs:
           $p = Start-Process -FilePath dist\Jarvis\Jarvis.exe -ArgumentList "selftest","--deep" -Wait -PassThru
           Get-Content "$env:JARVIS_HOME\logs\jarvis.log" -Tail 40
           if ($p.ExitCode -ne 0) { throw "self-test failed ($($p.ExitCode))" }
+      - name: The executable carries the Jarvis icon
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Resolve-Path dist\Jarvis\Jarvis.exe))
+          if (-not $icon) { throw "no icon embedded in Jarvis.exe" }
+          $bitmap = $icon.ToBitmap()
+          $pixels = @(0..7 | ForEach-Object { $bitmap.GetPixel(16 + $_, 16) })
+          if (($pixels | Where-Object { $_.B -gt $_.R + 20 }).Count -eq 0) {
+            throw "the embedded icon does not look like the blue Jarvis icon"
+          }
+          "icon: $($bitmap.Width)x$($bitmap.Height), blue pixels found"
+
       - name: Size
         shell: pwsh
         run: |
